@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,11 +23,12 @@
       --border-hover: rgba(200, 56, 56, 0.5);
       --danger: #d04040;
       --success: #4caf50;
+      --warning: #f0b040;
       --mono: 'Space Mono', 'Consolas', monospace;
       --display: 'Fraunces', Georgia, serif;
     }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body {
       min-height: 100%;
@@ -39,25 +40,20 @@
 
     body::before {
       content: '';
-      position: fixed;
-      inset: 0;
+      position: fixed; inset: 0;
       background:
         radial-gradient(ellipse at 20% 0%, var(--accent-glow), transparent 50%),
         radial-gradient(ellipse at 80% 100%, var(--accent-glow), transparent 50%);
-      opacity: 0.5;
-      pointer-events: none;
-      z-index: 0;
+      opacity: 0.5; pointer-events: none; z-index: 0;
     }
     body::after {
       content: '';
-      position: fixed;
-      inset: 0;
+      position: fixed; inset: 0;
       background-image:
         linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
         linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
       background-size: 40px 40px;
-      pointer-events: none;
-      z-index: 0;
+      pointer-events: none; z-index: 0;
     }
 
     /* ─── LOCK ─── */
@@ -73,9 +69,8 @@
     .lock-title {
       font-size: 0.75rem; letter-spacing: 0.5em;
       color: var(--fg-dim); text-transform: uppercase;
-      animation: fadeIn 0.8s ease;
     }
-    .pin-input { display: flex; gap: 1rem; animation: fadeIn 0.8s ease 0.1s both; }
+    .pin-input { display: flex; gap: 1rem; }
     .pin-dot {
       width: 12px; height: 12px; border-radius: 50%;
       border: 1.5px solid var(--fg-dim);
@@ -88,10 +83,9 @@
     .pin-dot.error { border-color: var(--danger); animation: shake 0.4s ease; }
     .lock-hint {
       font-size: 0.7rem; color: var(--fg-dimmer);
-      letter-spacing: 0.2em; animation: fadeIn 0.8s ease 0.2s both;
+      letter-spacing: 0.2em;
     }
     .hidden-input { position: absolute; opacity: 0; pointer-events: none; }
-
     @keyframes shake {
       0%, 100% { transform: translateX(0); }
       25% { transform: translateX(-6px); }
@@ -109,7 +103,7 @@
       display: flex; flex-direction: column;
       padding: 2.5rem 3.5rem;
       opacity: 0;
-      animation: fadeIn 0.6s ease 0.3s forwards;
+      animation: fadeIn 0.5s ease 0.2s forwards;
     }
 
     .topbar {
@@ -141,11 +135,11 @@
     .topbar .ipbox svg { width: 12px; height: 12px; }
 
     /* ─── CLOCK ─── */
-    .clock-wrap {
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 0.8rem;
-      padding: 3rem 0 2rem;
+    .clock-row {
+      display: flex; align-items: center; justify-content: center;
+      gap: 1.5rem;
+      padding: 3rem 0 0.6rem;
+      position: relative;
     }
     .clock {
       font-family: var(--display); font-weight: 200;
@@ -166,6 +160,11 @@
       0%, 50%, 100% { opacity: 0.25; }
       25%, 75% { opacity: 0.7; }
     }
+    .clock-wrap {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 0.8rem;
+      padding-bottom: 1.5rem;
+    }
     .date {
       font-size: 0.75rem; color: var(--fg-dim);
       letter-spacing: 0.35em; text-transform: uppercase;
@@ -175,57 +174,144 @@
       letter-spacing: 0.5em;
     }
 
-    /* ─── TABS ─── */
-    .tabs-wrap {
-      max-width: 1400px; width: 100%;
-      margin: 0 auto 1rem;
-      display: flex;
-      gap: 0.4rem;
-      flex-wrap: wrap;
-      align-items: center;
+    /* ─── DEADLINE BADGE (рваная плашка сбоку от часов) ─── */
+    .deadline-badge {
+      position: absolute;
+      right: calc(50% + 320px);  /* слева от часов */
+      top: 50%;
+      transform: translateY(-50%);
+      background: var(--bg-2);
+      border: 1px solid var(--accent);
+      padding: 0.7rem 1rem 0.7rem 1.3rem;
+      max-width: 220px;
+      cursor: pointer;
+      animation: deadlinePulse 1.8s ease-in-out infinite, deadlineSlide 0.5s ease;
+      /* рваный край справа через clip-path */
+      clip-path: polygon(0 0, 100% 0, 95% 25%, 100% 50%, 92% 70%, 100% 100%, 0 100%);
     }
-    .tab {
-      padding: 0.45rem 0.9rem;
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 100px;
-      color: var(--fg-dim);
+    .deadline-badge.overdue {
+      border-color: var(--danger);
+      animation: deadlinePulseOverdue 0.9s ease-in-out infinite, deadlineSlide 0.5s ease;
+    }
+    .deadline-badge::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--accent);
+    }
+    .deadline-badge.overdue::before { background: var(--danger); }
+    .deadline-badge-label {
+      font-size: 0.55rem;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      color: var(--accent-bright);
+      margin-bottom: 0.3rem;
+    }
+    .deadline-badge.overdue .deadline-badge-label { color: var(--danger); }
+    .deadline-badge-text {
+      font-size: 0.8rem;
+      color: var(--fg);
+      line-height: 1.3;
+      max-height: 2.6em;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .deadline-badge-time {
       font-family: var(--mono);
       font-size: 0.7rem;
-      letter-spacing: 0.2em;
+      color: var(--fg-dim);
+      margin-top: 0.3rem;
+      letter-spacing: 0.1em;
+    }
+    @keyframes deadlinePulse {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(155, 32, 32, 0.4),
+                    0 4px 20px rgba(0,0,0,0.4);
+      }
+      50% {
+        box-shadow: 0 0 0 8px rgba(155, 32, 32, 0),
+                    0 4px 25px rgba(0,0,0,0.5);
+      }
+    }
+    @keyframes deadlinePulseOverdue {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(208, 64, 64, 0.6),
+                    0 4px 20px rgba(0,0,0,0.4);
+      }
+      50% {
+        box-shadow: 0 0 0 10px rgba(208, 64, 64, 0),
+                    0 4px 25px rgba(0,0,0,0.5);
+      }
+    }
+    @keyframes deadlineSlide {
+      from { opacity: 0; transform: translate(-20px, -50%); }
+      to { opacity: 1; transform: translate(0, -50%); }
+    }
+
+    /* ─── WORKSPACE TABS (моноширинно, центрировано под часами) ─── */
+    .ws-tabs {
+      display: flex; justify-content: center;
+      gap: 2rem;
+      margin: 0 auto 2rem;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.4em;
       text-transform: uppercase;
+      flex-wrap: wrap;
+    }
+    .ws-tab {
+      background: none; border: none;
+      color: var(--fg-dim);
       cursor: pointer;
-      transition: all 0.2s;
+      font: inherit; letter-spacing: inherit; text-transform: inherit;
+      padding: 0.4rem 0;
+      position: relative;
+      transition: color 0.15s;
     }
-    .tab:hover { color: var(--fg); border-color: var(--border-strong); }
-    .tab.active {
-      color: var(--fg);
-      border-color: var(--accent);
-      background: rgba(155, 32, 32, 0.08);
-    }
-    .tab-count {
-      display: inline-block;
-      margin-left: 0.4em;
-      opacity: 0.6;
-      font-size: 0.85em;
-    }
-    .tab-add {
-      width: 28px; height: 28px;
-      padding: 0;
-      display: flex; align-items: center; justify-content: center;
+    .ws-tab:hover { color: var(--fg); }
+    .ws-tab.active { color: var(--fg); }
+    .ws-tab.active::after {
+      content: '';
+      position: absolute;
+      left: 50%; bottom: 0;
+      transform: translateX(-50%);
+      width: 6px; height: 6px;
       border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent-glow);
     }
-    .tab-add svg { width: 12px; height: 12px; }
-    .breadcrumb {
+    .ws-tab-count {
+      opacity: 0.5;
+      font-size: 0.85em;
+      margin-left: 0.4em;
+    }
+    .ws-add {
+      background: none; border: none;
+      color: var(--fg-dim);
+      cursor: pointer;
+      padding: 0.4rem 0.5rem;
       display: flex; align-items: center;
+      transition: color 0.15s;
+    }
+    .ws-add:hover { color: var(--accent-bright); }
+    .ws-add svg { width: 12px; height: 12px; }
+    .breadcrumb {
+      display: flex; align-items: center; justify-content: center;
       gap: 0.5rem;
-      padding: 0.45rem 0.9rem;
+      margin: 0 auto 2rem;
       color: var(--fg-dim);
       font-size: 0.7rem;
-      letter-spacing: 0.2em;
+      letter-spacing: 0.3em;
       text-transform: uppercase;
       cursor: pointer;
-      transition: color 0.2s;
+      background: none; border: none;
+      font-family: var(--mono);
+      padding: 0.4rem 0.8rem;
+      border-radius: 4px;
+      transition: color 0.15s;
     }
     .breadcrumb:hover { color: var(--fg); }
     .breadcrumb svg { width: 12px; height: 12px; }
@@ -246,11 +332,11 @@
       border-radius: 8px;
       text-decoration: none;
       color: var(--fg);
-      transition: all 0.25s ease;
+      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
       overflow: hidden;
       display: flex; flex-direction: column; gap: 0.6rem;
       cursor: pointer;
-      animation: tileIn 0.5s ease backwards;
+      contain: layout style;
     }
     .tile::before {
       content: '';
@@ -258,22 +344,16 @@
       width: 2px; background: var(--accent);
       transform: scaleY(0);
       transform-origin: bottom;
-      transition: transform 0.3s ease;
+      transition: transform 0.25s ease;
     }
     .tile:hover {
       border-color: var(--border-hover);
       background: var(--bg-3);
       transform: translateY(-2px);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     }
     .tile:hover::before { transform: scaleY(1); transform-origin: top; }
     .tile.dragging { opacity: 0.4; }
     .tile.drag-over { border-color: var(--accent-bright); }
-
-    @keyframes tileIn {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
 
     .tile-head {
       display: flex; justify-content: space-between; align-items: flex-start;
@@ -282,14 +362,14 @@
     .tile-icon {
       width: 22px; height: 22px;
       color: var(--fg-dim);
-      transition: color 0.25s;
+      transition: color 0.2s;
       flex-shrink: 0;
     }
     .tile:hover .tile-icon { color: var(--accent-bright); }
     .tile-label {
       font-size: 0.6rem; letter-spacing: 0.35em;
       color: var(--fg-dim); text-transform: uppercase;
-      transition: color 0.25s;
+      transition: color 0.2s;
     }
     .tile:hover .tile-label { color: var(--accent-bright); }
     .tile-name {
@@ -303,25 +383,27 @@
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
 
+    /* actions — нижний правый угол */
     .tile-actions {
-      position: absolute; top: 0.5rem; right: 0.5rem;
+      position: absolute; bottom: 0.5rem; right: 0.5rem;
       display: flex; gap: 0.25rem;
       opacity: 0;
-      transition: opacity 0.2s;
+      transition: opacity 0.15s;
     }
     .tile:hover .tile-actions { opacity: 1; }
     .tile-act {
       background: rgba(0,0,0,0.5);
       border: 1px solid var(--border);
       border-radius: 4px;
-      width: 24px; height: 24px;
+      width: 22px; height: 22px;
       display: flex; align-items: center; justify-content: center;
       cursor: pointer; color: var(--fg-dim);
-      transition: all 0.15s;
+      transition: color 0.15s, border-color 0.15s;
+      backdrop-filter: blur(4px);
     }
     .tile-act:hover { color: var(--fg); border-color: var(--border-strong); }
     .tile-act.danger:hover { color: var(--danger); border-color: var(--danger); }
-    .tile-act svg { width: 12px; height: 12px; }
+    .tile-act svg { width: 11px; height: 11px; }
 
     .tile-tool .tile-label { color: var(--accent); opacity: 0.75; }
     .tile-tool .tile-icon { color: var(--accent); opacity: 0.85; }
@@ -357,7 +439,7 @@
       display: flex; align-items: center; justify-content: center;
       min-height: 120px;
       color: var(--fg-dim);
-      transition: all 0.25s;
+      transition: border-color 0.2s, color 0.2s, transform 0.2s;
     }
     .tile-add:hover {
       border-color: var(--accent); color: var(--accent-bright);
@@ -407,7 +489,6 @@
       z-index: 500;
       display: none;
       align-items: center; justify-content: center;
-      animation: fadeIn 0.2s ease;
     }
     .modal-backdrop.active { display: flex; }
     .modal {
@@ -417,9 +498,8 @@
       padding: 2rem;
       width: 90%; max-width: 560px;
       max-height: 85vh; overflow-y: auto;
-      animation: modalIn 0.3s ease;
+      animation: modalIn 0.25s ease;
     }
-    .modal-wide { max-width: 760px; }
     @keyframes modalIn {
       from { opacity: 0; transform: scale(0.96) translateY(10px); }
       to { opacity: 1; transform: scale(1) translateY(0); }
@@ -453,7 +533,7 @@
       border-radius: 6px;
       font-family: var(--mono);
       font-size: 0.85rem;
-      transition: border-color 0.2s;
+      transition: border-color 0.15s;
     }
     .field input:focus, .field select:focus, .field textarea:focus {
       outline: none; border-color: var(--accent);
@@ -478,7 +558,7 @@
       border-radius: 5px;
       cursor: pointer;
       color: var(--fg-dim);
-      transition: all 0.15s;
+      transition: color 0.12s, background 0.12s, border-color 0.12s;
     }
     .icon-opt:hover { color: var(--fg); background: var(--bg-3); }
     .icon-opt.selected {
@@ -505,7 +585,7 @@
       font-size: 0.75rem;
       letter-spacing: 0.2em;
       text-transform: uppercase;
-      transition: all 0.2s;
+      transition: border-color 0.15s, background 0.15s;
     }
     .btn:hover { border-color: var(--fg-dim); }
     .btn-primary {
@@ -517,7 +597,6 @@
     .btn-danger:hover { background: rgba(208, 64, 64, 0.1); border-color: var(--danger); }
     .btn-small { padding: 0.4rem 0.8rem; font-size: 0.65rem; }
 
-    /* type selector в форме */
     .type-selector { display: flex; gap: 0.4rem; margin-bottom: 1.2rem; }
     .type-opt {
       flex: 1;
@@ -528,7 +607,7 @@
       color: var(--fg-dim);
       cursor: pointer;
       text-align: center;
-      transition: all 0.15s;
+      transition: color 0.12s, border-color 0.12s, background 0.12s;
       font-family: var(--mono);
       font-size: 0.7rem;
       letter-spacing: 0.2em;
@@ -541,6 +620,47 @@
       background: rgba(155, 32, 32, 0.06);
     }
 
+    /* ─── ADD MENU (popup от плюсика) ─── */
+    .add-menu {
+      position: absolute;
+      background: var(--bg-2);
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      padding: 0.4rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      z-index: 450;
+      display: none;
+      min-width: 200px;
+      animation: modalIn 0.15s ease;
+    }
+    .add-menu.active { display: block; }
+    .add-menu-item {
+      display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.6rem 0.8rem;
+      cursor: pointer;
+      border-radius: 5px;
+      color: var(--fg);
+      font-size: 0.75rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      transition: background 0.1s;
+    }
+    .add-menu-item:hover { background: var(--bg-3); }
+    .add-menu-item svg { width: 14px; height: 14px; color: var(--fg-dim); }
+    .add-menu-item:hover svg { color: var(--accent-bright); }
+    .add-menu-sep {
+      height: 1px;
+      background: var(--border);
+      margin: 0.3rem 0;
+    }
+    .add-menu-label {
+      padding: 0.4rem 0.8rem;
+      font-size: 0.55rem;
+      letter-spacing: 0.3em;
+      color: var(--fg-dimmer);
+      text-transform: uppercase;
+    }
+
     /* ─── COMMAND PALETTE ─── */
     .cmdk {
       position: fixed; inset: 0;
@@ -550,7 +670,6 @@
       display: none;
       align-items: flex-start; justify-content: center;
       padding-top: 15vh;
-      animation: fadeIn 0.15s ease;
     }
     .cmdk.active { display: flex; }
     .cmdk-box {
@@ -575,7 +694,7 @@
       padding: 0.7rem 1.3rem;
       cursor: pointer; color: var(--fg-dim);
       border-left: 2px solid transparent;
-      transition: all 0.1s;
+      transition: background 0.1s, color 0.1s, border-color 0.1s;
     }
     .cmdk-item.active, .cmdk-item:hover {
       background: var(--bg-3); color: var(--fg);
@@ -608,7 +727,7 @@
       text-transform: uppercase;
       z-index: 700;
       opacity: 0; pointer-events: none;
-      transition: all 0.3s ease;
+      transition: opacity 0.25s ease, transform 0.25s ease;
     }
     .toast.show {
       opacity: 1; transform: translateX(-50%) translateY(0);
@@ -646,11 +765,11 @@
       background: var(--bg);
       cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: all 0.2s;
+      transition: border-color 0.15s, transform 0.15s;
       position: relative;
       font-family: var(--mono);
       font-size: 0.65rem;
-      font-weight: 700; letter-spacing: 0.05em;
+      font-weight: 700;
       padding: 0;
     }
     .ai-btn:hover { border-color: var(--accent); transform: translateY(-2px); }
@@ -670,7 +789,7 @@
       font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase;
       white-space: nowrap;
       opacity: 0; pointer-events: none;
-      transition: opacity 0.15s;
+      transition: opacity 0.12s;
     }
     .ai-btn:hover .ai-tooltip { opacity: 1; }
 
@@ -688,7 +807,7 @@
       color: var(--fg-dim);
       cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: all 0.2s;
+      transition: color 0.15s, border-color 0.15s;
     }
     .todo-toggle:hover { color: var(--accent-bright); border-color: var(--accent); }
     .todo-toggle .badge {
@@ -702,6 +821,7 @@
       display: flex; align-items: center; justify-content: center;
       font-weight: 700;
     }
+    .todo-toggle .badge.urgent { background: var(--danger); animation: pulse 1s infinite; }
     .todo-panel {
       position: fixed;
       top: 0; right: 0; bottom: 0;
@@ -738,9 +858,12 @@
     .todo-add {
       padding: 1rem 1.5rem;
       border-bottom: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 0.5rem;
+    }
+    .todo-add-row {
       display: flex; gap: 0.5rem;
     }
-    .todo-add input {
+    .todo-add input[type=text] {
       flex: 1;
       background: var(--bg);
       border: 1px solid var(--border-strong);
@@ -750,8 +873,31 @@
       font-family: var(--mono);
       font-size: 0.85rem;
     }
-    .todo-add input:focus { outline: none; border-color: var(--accent); }
-    .todo-add button {
+    .todo-add input[type=text]:focus { outline: none; border-color: var(--accent); }
+    .todo-add input[type=datetime-local] {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border-strong);
+      color: var(--fg);
+      padding: 0.4rem 0.6rem;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color-scheme: dark;
+    }
+    .todo-add input[type=datetime-local]:focus { outline: none; border-color: var(--accent); }
+    .todo-add-clear {
+      background: transparent;
+      border: 1px solid var(--border-strong);
+      color: var(--fg-dim);
+      padding: 0 0.6rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+    }
+    .todo-add-clear:hover { color: var(--danger); }
+    .todo-add button.todo-add-btn {
       padding: 0.6rem 0.9rem;
       background: var(--accent);
       border: none; color: var(--fg);
@@ -770,16 +916,18 @@
       padding: 0.7rem 1.5rem;
       cursor: pointer;
       border-left: 2px solid transparent;
-      transition: all 0.15s;
+      transition: background 0.12s;
     }
     .todo-item:hover { background: var(--bg-3); }
+    .todo-item.urgent { border-left-color: var(--warning); }
+    .todo-item.overdue { border-left-color: var(--danger); }
     .todo-check {
       width: 16px; height: 16px;
       border-radius: 4px;
       border: 1.5px solid var(--fg-dim);
       flex-shrink: 0;
       margin-top: 2px;
-      transition: all 0.15s;
+      transition: background 0.12s, border-color 0.12s;
       display: flex; align-items: center; justify-content: center;
     }
     .todo-check svg { width: 10px; height: 10px; color: var(--fg); opacity: 0; }
@@ -788,8 +936,8 @@
       border-color: var(--accent);
     }
     .todo-item.done .todo-check svg { opacity: 1; }
+    .todo-text-wrap { flex: 1; min-width: 0; }
     .todo-text {
-      flex: 1;
       font-size: 0.85rem;
       line-height: 1.4;
       word-break: break-word;
@@ -799,13 +947,23 @@
       text-decoration: line-through;
       text-decoration-color: var(--fg-dimmer);
     }
+    .todo-deadline {
+      font-size: 0.65rem;
+      color: var(--fg-dim);
+      margin-top: 0.3rem;
+      letter-spacing: 0.08em;
+      display: flex; gap: 0.3rem; align-items: center;
+    }
+    .todo-item.urgent .todo-deadline { color: var(--warning); }
+    .todo-item.overdue .todo-deadline { color: var(--danger); font-weight: 700; }
+    .todo-deadline svg { width: 11px; height: 11px; }
     .todo-del {
       opacity: 0;
       background: transparent; border: none;
       color: var(--fg-dim);
       cursor: pointer;
       padding: 0;
-      transition: opacity 0.15s, color 0.15s;
+      transition: opacity 0.12s, color 0.12s;
     }
     .todo-item:hover .todo-del { opacity: 1; }
     .todo-del:hover { color: var(--danger); }
@@ -884,7 +1042,7 @@
       border-bottom: 1px solid var(--border);
       cursor: pointer;
       border-left: 2px solid transparent;
-      transition: all 0.15s;
+      transition: background 0.12s, border-color 0.12s;
     }
     .note-row:hover { background: var(--bg-3); }
     .note-row.active {
@@ -1073,7 +1231,7 @@
       border-radius: 100px;
       position: relative;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: background 0.15s, border-color 0.15s;
       flex-shrink: 0;
     }
     .toggle::after {
@@ -1083,7 +1241,7 @@
       width: 16px; height: 16px;
       background: var(--fg-dim);
       border-radius: 50%;
-      transition: all 0.2s;
+      transition: left 0.15s, background 0.15s;
     }
     .toggle.on { background: var(--accent); border-color: var(--accent); }
     .toggle.on::after {
@@ -1114,7 +1272,7 @@
       border: 1px solid var(--border-strong);
       border-radius: 6px;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: transform 0.15s, border-color 0.15s;
       text-align: left;
     }
     .theme-opt:hover { transform: translateY(-2px); }
@@ -1198,12 +1356,29 @@
       margin-bottom: 0.8rem;
     }
 
+    /* workspaces list in settings */
+    .ws-row {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.4rem 0;
+    }
+    .ws-row input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border-strong);
+      color: var(--fg);
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+    }
+
     /* адаптив */
     @media (max-width: 1100px) {
       :root { --cols: 3 !important; }
       .grid { grid-template-columns: repeat(3, 1fr); }
       .main { padding: 2rem; }
       .clock { font-size: 6rem; }
+      .deadline-badge { right: calc(50% + 230px); max-width: 180px; }
       .notes-modal { width: 98vw; }
       .notes-list { width: 200px; }
     }
@@ -1214,8 +1389,16 @@
       .icon-grid { grid-template-columns: repeat(6, 1fr); }
       .main { padding: 1.5rem; }
       .todo-panel { width: 90vw; }
+      .deadline-badge {
+        position: static;
+        transform: none;
+        max-width: none;
+        margin: 0 1rem;
+        animation: deadlinePulse 1.8s ease-in-out infinite;
+      }
+      .deadline-badge.overdue { animation: deadlinePulseOverdue 0.9s ease-in-out infinite; }
+      .clock-row { flex-direction: column; gap: 1rem; }
       .notes-list { display: none; }
-      .notes-list.mobile-open { display: flex; position: absolute; left: 0; top: 50px; bottom: 0; z-index: 5; background: var(--bg-2); width: 80%; }
     }
   </style>
 </head>
@@ -1251,15 +1434,18 @@
       </div>
     </div>
 
-    <div class="clock-wrap" data-widget="clock">
-      <div class="clock">
-        <span id="h">00</span><span class="sep">:</span><span id="m">00</span><span class="seconds" id="s">00</span>
+    <div class="clock-row">
+      <div class="deadline-badge" id="deadlineBadge" style="display:none;"></div>
+      <div class="clock-wrap" data-widget="clock">
+        <div class="clock">
+          <span id="h">00</span><span class="sep">:</span><span id="m">00</span><span class="seconds" id="s">00</span>
+        </div>
+        <div class="date" id="date">—</div>
+        <div class="tz-label">europe / kyiv</div>
       </div>
-      <div class="date" id="date">—</div>
-      <div class="tz-label">europe / kyiv</div>
     </div>
 
-    <div class="tabs-wrap" id="tabsWrap"></div>
+    <div class="ws-tabs" id="wsTabs"></div>
     <div class="grid-wrap">
       <div class="grid" id="grid"></div>
     </div>
@@ -1303,8 +1489,14 @@
       </button>
     </div>
     <div class="todo-add">
-      <input type="text" id="todoInput" placeholder="add a task…">
-      <button id="todoAddBtn">+</button>
+      <div class="todo-add-row">
+        <input type="text" id="todoInput" placeholder="add a task…">
+        <button class="todo-add-btn" id="todoAddBtn">+</button>
+      </div>
+      <div class="todo-add-row">
+        <input type="datetime-local" id="todoDeadline" title="optional deadline">
+        <button class="todo-add-clear" id="todoDeadlineClear" title="clear deadline">×</button>
+      </div>
     </div>
     <div class="todo-list" id="todoList"></div>
     <div class="todo-footer">
@@ -1409,20 +1601,16 @@
       </div>
 
       <div class="field">
-        <label>label · короткая метка</label>
+        <label>label</label>
         <input type="text" id="fLabel" placeholder="hosting" maxlength="20">
       </div>
       <div class="field">
-        <label>name · название</label>
+        <label>name</label>
         <input type="text" id="fName" placeholder="Hostinger" maxlength="40">
       </div>
       <div class="field" id="urlField">
         <label>url</label>
         <input type="url" id="fUrl" placeholder="https://...">
-      </div>
-      <div class="field" id="tagField">
-        <label>tab · вкладка (тег)</label>
-        <select id="fTag"></select>
       </div>
       <div class="field">
         <label>icon</label>
@@ -1435,6 +1623,9 @@
       </div>
     </div>
   </div>
+
+  <!-- ─── ADD MENU (popup от +) -->
+  <div class="add-menu" id="addMenu"></div>
 
   <!-- ─── COMMAND PALETTE ─── -->
   <div class="cmdk" id="cmdk">
@@ -1452,39 +1643,43 @@
       <div class="settings-section">
         <h3>Widgets</h3>
         <div class="toggle-row">
-          <div class="toggle-row-label">AI Bar <small>панель ИИ внизу экрана</small></div>
+          <div class="toggle-row-label">AI Bar <small>bottom AI launcher bar</small></div>
           <div class="toggle" data-toggle="aibar"></div>
         </div>
         <div class="toggle-row">
-          <div class="toggle-row-label">Tasks panel <small>выезжающая панель задач</small></div>
+          <div class="toggle-row-label">Tasks panel <small>side-sliding task list</small></div>
           <div class="toggle" data-toggle="todo"></div>
         </div>
         <div class="toggle-row">
-          <div class="toggle-row-label">Weather <small>погода в Киеве</small></div>
+          <div class="toggle-row-label">Weather <small>kyiv current temperature</small></div>
           <div class="toggle" data-toggle="weather"></div>
         </div>
         <div class="toggle-row">
-          <div class="toggle-row-label">Public IP <small>показ публичного IP в шапке</small></div>
+          <div class="toggle-row-label">Public IP <small>show public IP in header</small></div>
           <div class="toggle" data-toggle="ip"></div>
         </div>
         <div class="toggle-row">
-          <div class="toggle-row-label">Uptime <small>счётчик сессии</small></div>
+          <div class="toggle-row-label">Uptime <small>session timer</small></div>
           <div class="toggle" data-toggle="uptime"></div>
         </div>
         <div class="toggle-row">
-          <div class="toggle-row-label">Seconds in clock <small>секунды у часов</small></div>
+          <div class="toggle-row-label">Seconds in clock <small>show seconds</small></div>
           <div class="toggle" data-toggle="seconds"></div>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-row-label">Deadline badge <small>show urgent task next to clock</small></div>
+          <div class="toggle" data-toggle="deadline"></div>
         </div>
       </div>
 
       <div class="settings-section">
         <h3>Grid</h3>
         <div class="toggle-row">
-          <div class="toggle-row-label">Columns (root) <small>колонок в основной сетке</small></div>
+          <div class="toggle-row-label">Columns (root) <small>main grid columns</small></div>
           <input type="number" class="num-input" id="setColsRoot" min="2" max="8">
         </div>
         <div class="toggle-row">
-          <div class="toggle-row-label">Columns (folders) <small>колонок внутри папок</small></div>
+          <div class="toggle-row-label">Columns (folders) <small>columns inside folders</small></div>
           <input type="number" class="num-input" id="setColsFolder" min="2" max="8">
         </div>
       </div>
@@ -1517,24 +1712,24 @@
 
         <h3>Custom CSS</h3>
         <div class="css-warning">⚠ custom CSS runs in your browser. only paste code you trust.</div>
-        <textarea id="customCss" placeholder="/* свой CSS, например: */&#10;body { background: black; }" style="width: 100%; min-height: 100px; background: var(--bg); border: 1px solid var(--border-strong); color: var(--fg); padding: 0.7rem; border-radius: 6px; font-family: var(--mono); font-size: 0.8rem;"></textarea>
+        <textarea id="customCss" placeholder="/* your CSS here */" style="width: 100%; min-height: 100px; background: var(--bg); border: 1px solid var(--border-strong); color: var(--fg); padding: 0.7rem; border-radius: 6px; font-family: var(--mono); font-size: 0.8rem;"></textarea>
         <button class="btn btn-small" id="applyCustomCss" style="margin-top: 0.5rem;">apply CSS</button>
       </div>
 
       <div class="settings-section">
         <h3>Currency pairs</h3>
-        <small style="color: var(--fg-dim); display: block; margin-bottom: 0.8rem; font-size: 0.7rem;">пары добавляются как плитки в основную сетку. ▲▼ показывают дельту с прошлого открытия.</small>
+        <small style="color: var(--fg-dim); display: block; margin-bottom: 0.8rem; font-size: 0.7rem;">tiles render in current workspace. ▲▼ shows delta vs previous load.</small>
         <div class="currency-pairs-list" id="currencyPairsList"></div>
         <button class="btn btn-small" id="addCurrencyPair" style="margin-top: 0.6rem;">+ add pair</button>
       </div>
 
       <div class="settings-section">
-        <h3>Tags / Tabs</h3>
-        <small style="color: var(--fg-dim); display: block; margin-bottom: 0.8rem; font-size: 0.7rem;">вкладки сверху над сеткой — фильтры по тегу</small>
-        <div id="tagsListSettings"></div>
+        <h3>Workspaces</h3>
+        <small style="color: var(--fg-dim); display: block; margin-bottom: 0.8rem; font-size: 0.7rem;">each workspace has its own set of tiles.</small>
+        <div id="wsListSettings"></div>
         <div style="display: flex; gap: 0.4rem; margin-top: 0.6rem;">
-          <input type="text" id="newTagInput" placeholder="new tag name" style="flex: 1; background: var(--bg); border: 1px solid var(--border-strong); color: var(--fg); padding: 0.5rem 0.8rem; border-radius: 6px; font-family: var(--mono); font-size: 0.8rem;">
-          <button class="btn btn-small" id="addTagBtn">+ add</button>
+          <input type="text" id="newWsInput" placeholder="new workspace name" style="flex: 1; background: var(--bg); border: 1px solid var(--border-strong); color: var(--fg); padding: 0.5rem 0.8rem; border-radius: 6px; font-family: var(--mono); font-size: 0.8rem;">
+          <button class="btn btn-small" id="addWsBtn">+ add</button>
         </div>
       </div>
 
@@ -1549,16 +1744,18 @@
   <input type="file" id="importFile" accept=".json" style="display:none;">
 
   <script>
+  'use strict';
+  (function() {
     // ═══════════════════════════════════════════════════════
-    //                    CONFIG & CONSTANTS
+    //                    CONFIG
     // ═══════════════════════════════════════════════════════
     const PIN = '0955';
     const AUTH_KEY = 'sysadmin_auth_v1';
-    const DATA_KEY = 'sysadmin_data_v3';      // bumped — новая модель
-    const NOTES_KEY = 'sysadmin_notes_v2';    // notes v2 = массив объектов
-    const TODO_KEY = 'sysadmin_todo_v1';
-    const SETTINGS_KEY = 'sysadmin_settings_v1';
-    const TAGS_KEY = 'sysadmin_tags_v1';
+    const DATA_KEY = 'sysadmin_data_v4';      // bumped — model changed (workspace instead of tag)
+    const NOTES_KEY = 'sysadmin_notes_v2';
+    const TODO_KEY = 'sysadmin_todo_v2';      // bumped — adds deadline field
+    const SETTINGS_KEY = 'sysadmin_settings_v2';
+    const WS_KEY = 'sysadmin_workspaces_v1';
     const CURR_CACHE_KEY = 'sysadmin_curr_cache_v1';
     const sessionStart = Date.now();
 
@@ -1579,7 +1776,7 @@
       file:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>',
       sheet:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>',
       home:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/>',
-      settings:'<path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.6 1.65 1.65 0 0010 3.09V3a2 2 0 014 0v.09c0 .66.39 1.26 1 1.51a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9c.25.61.85 1 1.51 1H21a2 2 0 010 4h-.09c-.66 0-1.26.39-1.51 1z"/>',
+      settings:'<circle cx="12" cy="12" r="3"/>',
       user:'<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>',
       users:'<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>',
       lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>',
@@ -1596,145 +1793,132 @@
       wifi:'<path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01"/>',
       package:'<path d="M16.5 9.4l-9-5.19M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16zM3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/>'
     };
-    function iconSvg(name, cls='tile-icon') {
+    function iconSvg(name, cls) {
       const p = ICONS[name] || ICONS.link;
-      return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+      return '<svg class="' + (cls === undefined ? 'tile-icon' : cls) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>';
     }
 
     // ─── THEMES ───
     const THEMES = {
       cyberpunk: {
         name: 'Cyberpunk Red',
-        vars: {
-          '--bg':'#0a0a0c','--bg-2':'#131318','--bg-3':'#18181f',
-          '--fg':'#e8e8ec','--fg-dim':'#6b6b75','--fg-dimmer':'#3a3a42',
-          '--accent':'#9b2020','--accent-bright':'#c83838',
-          '--accent-glow':'rgba(155, 32, 32, 0.4)',
-          '--border':'rgba(255, 255, 255, 0.06)',
-          '--border-strong':'rgba(255, 255, 255, 0.12)',
-          '--border-hover':'rgba(200, 56, 56, 0.5)'
-        }
+        vars: { '--bg':'#0a0a0c','--bg-2':'#131318','--bg-3':'#18181f','--fg':'#e8e8ec','--fg-dim':'#6b6b75','--fg-dimmer':'#3a3a42','--accent':'#9b2020','--accent-bright':'#c83838','--accent-glow':'rgba(155, 32, 32, 0.4)','--border':'rgba(255, 255, 255, 0.06)','--border-strong':'rgba(255, 255, 255, 0.12)','--border-hover':'rgba(200, 56, 56, 0.5)' }
       },
       matrix: {
         name: 'Matrix Green',
-        vars: {
-          '--bg':'#050805','--bg-2':'#0a120a','--bg-3':'#0d180d',
-          '--fg':'#d4f7d4','--fg-dim':'#5a8a5a','--fg-dimmer':'#2a4a2a',
-          '--accent':'#00cc00','--accent-bright':'#00ff66',
-          '--accent-glow':'rgba(0, 255, 102, 0.35)',
-          '--border':'rgba(0, 255, 102, 0.08)',
-          '--border-strong':'rgba(0, 255, 102, 0.18)',
-          '--border-hover':'rgba(0, 255, 102, 0.5)'
-        }
+        vars: { '--bg':'#050805','--bg-2':'#0a120a','--bg-3':'#0d180d','--fg':'#d4f7d4','--fg-dim':'#5a8a5a','--fg-dimmer':'#2a4a2a','--accent':'#00cc00','--accent-bright':'#00ff66','--accent-glow':'rgba(0, 255, 102, 0.35)','--border':'rgba(0, 255, 102, 0.08)','--border-strong':'rgba(0, 255, 102, 0.18)','--border-hover':'rgba(0, 255, 102, 0.5)' }
       },
       nord: {
         name: 'Nord Ice',
-        vars: {
-          '--bg':'#2e3440','--bg-2':'#3b4252','--bg-3':'#434c5e',
-          '--fg':'#eceff4','--fg-dim':'#a3a9b5','--fg-dimmer':'#6b7280',
-          '--accent':'#5e81ac','--accent-bright':'#88c0d0',
-          '--accent-glow':'rgba(136, 192, 208, 0.35)',
-          '--border':'rgba(255, 255, 255, 0.08)',
-          '--border-strong':'rgba(255, 255, 255, 0.16)',
-          '--border-hover':'rgba(136, 192, 208, 0.5)'
-        }
+        vars: { '--bg':'#2e3440','--bg-2':'#3b4252','--bg-3':'#434c5e','--fg':'#eceff4','--fg-dim':'#a3a9b5','--fg-dimmer':'#6b7280','--accent':'#5e81ac','--accent-bright':'#88c0d0','--accent-glow':'rgba(136, 192, 208, 0.35)','--border':'rgba(255, 255, 255, 0.08)','--border-strong':'rgba(255, 255, 255, 0.16)','--border-hover':'rgba(136, 192, 208, 0.5)' }
       },
       console: {
         name: 'Console Blue',
-        vars: {
-          '--bg':'#0a1020','--bg-2':'#11192e','--bg-3':'#172040',
-          '--fg':'#e0e8ff','--fg-dim':'#6a7898','--fg-dimmer':'#3a4060',
-          '--accent':'#3060c0','--accent-bright':'#5090ff',
-          '--accent-glow':'rgba(80, 144, 255, 0.4)',
-          '--border':'rgba(255, 255, 255, 0.06)',
-          '--border-strong':'rgba(255, 255, 255, 0.14)',
-          '--border-hover':'rgba(80, 144, 255, 0.5)'
-        }
+        vars: { '--bg':'#0a1020','--bg-2':'#11192e','--bg-3':'#172040','--fg':'#e0e8ff','--fg-dim':'#6a7898','--fg-dimmer':'#3a4060','--accent':'#3060c0','--accent-bright':'#5090ff','--accent-glow':'rgba(80, 144, 255, 0.4)','--border':'rgba(255, 255, 255, 0.06)','--border-strong':'rgba(255, 255, 255, 0.14)','--border-hover':'rgba(80, 144, 255, 0.5)' }
       }
     };
 
-    // ─── DEFAULT SETTINGS ───
     const DEFAULT_SETTINGS = {
       theme: 'cyberpunk',
       customVars: null,
       customCss: '',
-      widgets: {
-        aibar: true, todo: true, weather: true, ip: true,
-        uptime: true, seconds: true
-      },
+      widgets: { aibar: true, todo: true, weather: true, ip: true, uptime: true, seconds: true, deadline: true },
       cols: { root: 4, folder: 4 },
-      currencyPairs: [
-        { from: 'USD', to: 'UAH' },
-        { from: 'EUR', to: 'UAH' }
-      ]
+      currencyPairs: [],
+      activeWs: 'base'
     };
 
-    // ─── DEFAULT TAGS ───
-    const DEFAULT_TAGS = [
-      { id: 'work', name: 'work' },
-      { id: 'tools', name: 'tools' }
+    const DEFAULT_WORKSPACES = [
+      { id: 'base', name: 'BASE' }
     ];
 
-    // ─── DEFAULT BOOKMARKS (v3 model) ───
     const DEFAULT_BOOKMARKS = [
-      { id: '1', label: 'sheet · 01', name: 'Sheet A', url: 'https://docs.google.com/spreadsheets/d/1Qd47fkF6qX_F1CfH6B4MNm5bHgAyMCFfMxYS2vI0Ylo/edit?pli=1&gid=0#gid=0', icon: 'sheet', tag: 'work', parent: null },
-      { id: '2', label: 'pbx', name: 'DIDPBX', url: 'https://b.didpbx.com/', icon: 'phone', tag: 'work', parent: null },
-      { id: '3', label: 'portal', name: 'CrocoCalls', url: 'https://www.portal-crococalls.com/v2/login', icon: 'activity', tag: 'work', parent: null },
-      { id: '4', label: 'cards', name: 'Brocard', url: 'https://private.mybrocard.com/company/cards', icon: 'credit', tag: 'work', parent: null },
-      { id: '5', label: 'sheet · 02', name: 'Sheet B', url: 'https://docs.google.com/spreadsheets/d/1kzqDZuQAnfbaW9AIXw2IK-otwUsfvgOLs72rZQpumDM/edit?gid=0#gid=0', icon: 'sheet', tag: 'work', parent: null },
-      { id: '6', label: 'mail admin', name: 'Zoho Mail', url: 'https://mailadmin.zoho.com/cpanel/home.do', icon: 'mail', tag: 'work', parent: null },
-      { id: '7', label: 'hosting', name: 'Hostinger', url: 'https://hpanel.hostinger.com/domains', icon: 'globe', tag: 'work', parent: null },
-      { id: 't-notes', label: 'tool', name: 'Notes', tool: 'notes', icon: 'file', tag: 'tools', parent: null },
-      { id: 't-pass', label: 'tool', name: 'Password gen', tool: 'passgen', icon: 'key', tag: 'tools', parent: null },
-      { id: 't-phone', label: 'tool', name: 'Phone lookup', tool: 'phone', icon: 'phone', tag: 'tools', parent: null }
+      { id: 't-notes', label: 'tool', name: 'Notes', tool: 'notes', icon: 'file', ws: 'base', parent: null }
+    ];
+
+    // Available tools registry (для add menu)
+    const TOOLS = [
+      { id: 'notes',   name: 'Notes',             icon: 'file' },
+      { id: 'passgen', name: 'Password generator',icon: 'key' },
+      { id: 'phone',   name: 'Phone lookup',      icon: 'phone' },
+      { id: 'currency',name: 'Currency tile',     icon: 'bar' }
     ];
 
     // ═══════════════════════════════════════════════════════
     //                    STATE
     // ═══════════════════════════════════════════════════════
+    function load(key, def) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw === null) return def;
+        const v = JSON.parse(raw);
+        if (v === null || v === undefined) return def;
+        if (Array.isArray(def) && !Array.isArray(v)) return def;
+        return v;
+      } catch { return def; }
+    }
+    function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
     let bookmarks = load(DATA_KEY, DEFAULT_BOOKMARKS);
-    let tags = load(TAGS_KEY, DEFAULT_TAGS);
+    let workspaces = load(WS_KEY, DEFAULT_WORKSPACES);
     let settings = Object.assign({}, DEFAULT_SETTINGS, load(SETTINGS_KEY, {}));
+    settings.widgets = Object.assign({}, DEFAULT_SETTINGS.widgets, settings.widgets || {});
+    settings.cols = Object.assign({}, DEFAULT_SETTINGS.cols, settings.cols || {});
+    if (!Array.isArray(settings.currencyPairs)) settings.currencyPairs = [];
     let notes = load(NOTES_KEY, []);
     let todos = load(TODO_KEY, []);
     let currCache = load(CURR_CACHE_KEY, { rates: null, prevRates: null, updated: null });
 
-    let currentTag = 'all';
-    let currentFolder = null;  // id текущей папки или null
+    // если активный workspace удалили — фолбэк на первый
+    if (!workspaces.find(w => w.id === settings.activeWs)) {
+      settings.activeWs = workspaces[0] ? workspaces[0].id : 'base';
+    }
+    if (workspaces.length === 0) {
+      workspaces = [{ id: 'base', name: 'BASE' }];
+      save(WS_KEY, workspaces);
+      settings.activeWs = 'base';
+    }
+
+    let currentFolder = null;
     let editingId = null;
     let editingType = 'bookmark';
     let selectedIcon = 'link';
     let activeNoteId = null;
     let noteSaveTimer = null;
     let notesMode = 'edit';
+    let todoEditingDeadline = '';
 
-    function load(key, def) {
-      try {
-        const v = JSON.parse(localStorage.getItem(key) || 'null');
-        if (v === null || v === undefined) return def;
-        if (Array.isArray(def) && !Array.isArray(v)) return def;
-        return v;
-      } catch { return def; }
-    }
-    function save(key, val) {
-      localStorage.setItem(key, JSON.stringify(val));
-    }
-    function escapeHtml(s) {
-      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    }
-    function uid() { return String(Date.now()) + Math.random().toString(36).slice(2,6); }
+    // ═══════════════════════════════════════════════════════
+    //                    DOM CACHE
+    // ═══════════════════════════════════════════════════════
+    const $ = id => document.getElementById(id);
+    const lockEl = $('lock');
+    const mainEl = $('main');
+    const pinInput = $('pinInput');
+    const pinDots = document.querySelectorAll('#pinDisplay .pin-dot');
+    const wsTabs = $('wsTabs');
+    const grid = $('grid');
+    const deadlineBadge = $('deadlineBadge');
+    const aibar = $('aibar');
+    const aiInput = $('aiInput');
+    const todoToggle = $('todoToggle');
+    const todoPanel = $('todoPanel');
+    const todoInput = $('todoInput');
+    const todoDeadline = $('todoDeadline');
+    const todoListEl = $('todoList');
+    const todoBadge = $('todoBadge');
+    const todoStats = $('todoStats');
 
     // ═══════════════════════════════════════════════════════
     //                    LOCK
     // ═══════════════════════════════════════════════════════
-    const lockEl = document.getElementById('lock');
-    const mainEl = document.getElementById('main');
-    const pinInput = document.getElementById('pinInput');
-    const pinDots = document.querySelectorAll('#pinDisplay .pin-dot');
-
     function todayKey() {
       const d = new Date();
-      return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+      return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
     }
     function isAuthorized() {
       try {
@@ -1742,15 +1926,13 @@
         return data && data.day === todayKey();
       } catch { return false; }
     }
-    function authorize() {
-      localStorage.setItem(AUTH_KEY, JSON.stringify({ day: todayKey() }));
-    }
+    function authorize() { localStorage.setItem(AUTH_KEY, JSON.stringify({ day: todayKey() })); }
     function lock() {
       localStorage.removeItem(AUTH_KEY);
       mainEl.style.display = 'none';
       lockEl.classList.remove('hidden');
-      document.getElementById('aibar').style.display = 'none';
-      document.getElementById('todoToggle').style.display = 'none';
+      aibar.style.display = 'none';
+      todoToggle.style.display = 'none';
       pinInput.value = ''; updateDots('');
       pinInput.focus();
     }
@@ -1758,19 +1940,20 @@
       lockEl.classList.add('hidden');
       mainEl.style.display = 'flex';
       applyTheme();
-      renderTabs();
+      renderWsTabs();
       renderGrid();
       applyWidgetVisibility();
+      renderTodos();
+      updateDeadlineBadge();
       fetchWeather();
       fetchIp();
       fetchRates();
-      renderTodos();
     }
     function updateDots(value) {
-      pinDots.forEach((dot, i) => {
-        dot.classList.toggle('filled', i < value.length);
-        dot.classList.remove('error');
-      });
+      for (let i = 0; i < pinDots.length; i++) {
+        pinDots[i].classList.toggle('filled', i < value.length);
+        pinDots[i].classList.remove('error');
+      }
     }
     function flashError() {
       pinDots.forEach(d => d.classList.add('error'));
@@ -1786,7 +1969,7 @@
       }
     });
     lockEl.addEventListener('click', () => pinInput.focus());
-    document.getElementById('logout').addEventListener('click', lock);
+    $('logout').addEventListener('click', lock);
 
     // ═══════════════════════════════════════════════════════
     //                    THEME
@@ -1794,13 +1977,9 @@
     function applyTheme() {
       const themeKey = settings.theme || 'cyberpunk';
       const theme = THEMES[themeKey];
-      if (theme) {
-        Object.entries(theme.vars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
-      }
-      if (settings.customVars) {
-        Object.entries(settings.customVars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
-      }
-      let custom = document.getElementById('customCssTag');
+      if (theme) Object.entries(theme.vars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
+      if (settings.customVars) Object.entries(settings.customVars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
+      let custom = $('customCssTag');
       if (!custom) {
         custom = document.createElement('style');
         custom.id = 'customCssTag';
@@ -1810,208 +1989,134 @@
       document.documentElement.style.setProperty('--cols', settings.cols.root);
     }
 
-    // ═══════════════════════════════════════════════════════
-    //                    WIDGETS VISIBILITY
-    // ═══════════════════════════════════════════════════════
     function applyWidgetVisibility() {
       document.querySelectorAll('[data-widget]').forEach(el => {
         const w = el.dataset.widget;
-        if (w === 'clock') return; // clock всегда виден
+        if (w === 'clock') return;
         const on = !!settings.widgets[w];
-        if (w === 'aibar') {
-          el.style.display = on ? 'flex' : 'none';
-        } else if (w === 'todo') {
-          el.style.display = on ? 'flex' : 'none';
-        } else {
-          el.style.display = on ? '' : 'none';
-        }
+        if (w === 'aibar' || w === 'todo') el.style.display = on ? 'flex' : 'none';
+        else el.style.display = on ? '' : 'none';
       });
-      // секунды отдельно
-      document.getElementById('s').classList.toggle('hidden', !settings.widgets.seconds);
+      $('s').classList.toggle('hidden', !settings.widgets.seconds);
+      if (!settings.widgets.deadline) deadlineBadge.style.display = 'none';
+      else updateDeadlineBadge();
     }
 
     // ═══════════════════════════════════════════════════════
-    //                    TABS / GRID
+    //                    WORKSPACE TABS
     // ═══════════════════════════════════════════════════════
-    const tabsWrap = document.getElementById('tabsWrap');
-    const grid = document.getElementById('grid');
-
-    function renderTabs() {
-      // если в папке — показываем breadcrumb вместо вкладок
+    function renderWsTabs() {
+      wsTabs.innerHTML = '';
       if (currentFolder) {
         const folder = bookmarks.find(b => b.id === currentFolder);
-        tabsWrap.innerHTML = '';
-        const back = document.createElement('div');
+        const back = document.createElement('button');
         back.className = 'breadcrumb';
-        back.innerHTML = `
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-          back to all · ${escapeHtml(folder ? folder.name : 'folder')}
-        `;
-        back.addEventListener('click', () => { currentFolder = null; renderTabs(); renderGrid(); });
-        tabsWrap.appendChild(back);
+        back.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>back · ' + escapeHtml(folder ? folder.name : 'folder');
+        back.addEventListener('click', () => { currentFolder = null; renderWsTabs(); renderGrid(); });
+        wsTabs.appendChild(back);
         return;
       }
 
-      tabsWrap.innerHTML = '';
-      const allBtn = document.createElement('button');
-      allBtn.className = 'tab' + (currentTag === 'all' ? ' active' : '');
-      const totalCount = bookmarks.filter(b => !b.parent).length;
-      allBtn.innerHTML = `all<span class="tab-count">${totalCount}</span>`;
-      allBtn.addEventListener('click', () => { currentTag = 'all'; renderTabs(); renderGrid(); });
-      tabsWrap.appendChild(allBtn);
-
-      tags.forEach(t => {
+      const frag = document.createDocumentFragment();
+      workspaces.forEach(ws => {
         const btn = document.createElement('button');
-        btn.className = 'tab' + (currentTag === t.id ? ' active' : '');
-        const count = bookmarks.filter(b => !b.parent && b.tag === t.id).length;
-        btn.innerHTML = `${escapeHtml(t.name)}<span class="tab-count">${count}</span>`;
-        btn.addEventListener('click', () => { currentTag = t.id; renderTabs(); renderGrid(); });
-        tabsWrap.appendChild(btn);
+        btn.className = 'ws-tab' + (settings.activeWs === ws.id ? ' active' : '');
+        const count = bookmarks.filter(b => !b.parent && b.ws === ws.id).length;
+        btn.innerHTML = escapeHtml(ws.name) + '<span class="ws-tab-count">' + count + '</span>';
+        btn.addEventListener('click', () => {
+          if (settings.activeWs === ws.id) return;
+          settings.activeWs = ws.id;
+          save(SETTINGS_KEY, settings);
+          renderWsTabs(); renderGrid();
+        });
+        frag.appendChild(btn);
       });
 
       const addBtn = document.createElement('button');
-      addBtn.className = 'tab tab-add';
-      addBtn.title = 'manage tabs in settings';
-      addBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>`;
-      addBtn.addEventListener('click', () => openSettings('tags'));
-      tabsWrap.appendChild(addBtn);
+      addBtn.className = 'ws-add';
+      addBtn.title = 'manage workspaces';
+      addBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>';
+      addBtn.addEventListener('click', () => openSettings('workspaces'));
+      frag.appendChild(addBtn);
+
+      wsTabs.appendChild(frag);
     }
 
+    // ═══════════════════════════════════════════════════════
+    //                    GRID (event delegation)
+    // ═══════════════════════════════════════════════════════
     function getVisibleBookmarks() {
-      if (currentFolder) {
-        return bookmarks.filter(b => b.parent === currentFolder);
-      }
-      let list = bookmarks.filter(b => !b.parent);
-      if (currentTag !== 'all') list = list.filter(b => b.tag === currentTag);
-      return list;
+      if (currentFolder) return bookmarks.filter(b => b.parent === currentFolder);
+      return bookmarks.filter(b => !b.parent && b.ws === settings.activeWs);
     }
 
     function renderGrid() {
       const cols = currentFolder ? settings.cols.folder : settings.cols.root;
       grid.style.setProperty('--cols', cols);
 
-      grid.innerHTML = '';
+      const frag = document.createDocumentFragment();
       const items = getVisibleBookmarks();
 
-      items.forEach((b, idx) => {
-        grid.appendChild(makeTile(b, idx));
-      });
+      items.forEach(b => frag.appendChild(makeTile(b)));
 
-      // currency-плитки только на root (не в папках) и только при текущем tag='all' или 'tools'
-      if (!currentFolder && (currentTag === 'all' || currentTag === 'tools')) {
-        (settings.currencyPairs || []).forEach((pair, i) => {
-          grid.appendChild(makeCurrencyTile(pair, items.length + i));
+      if (!currentFolder) {
+        // currency tiles только в текущем workspace
+        (settings.currencyPairs || []).forEach(pair => {
+          if (pair.ws === settings.activeWs || !pair.ws) frag.appendChild(makeCurrencyTile(pair));
         });
       }
 
-      // "+" tile
       const addTile = document.createElement('div');
       addTile.className = 'tile tile-add';
-      addTile.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>`;
-      addTile.style.animationDelay = `${0.05 * (items.length + 1) + 0.1}s`;
-      addTile.addEventListener('click', () => openAddModal());
-      grid.appendChild(addTile);
+      addTile.id = 'addTile';
+      addTile.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>';
+      frag.appendChild(addTile);
+
+      grid.innerHTML = '';
+      grid.appendChild(frag);
     }
 
-    function makeTile(b, idx) {
+    function makeTile(b) {
       const isTool = !!b.tool;
       const isFolder = b.type === 'folder';
       const tile = document.createElement(isTool || isFolder ? 'div' : 'a');
       tile.className = 'tile' + (isTool ? ' tile-tool' : '') + (isFolder ? ' tile-folder' : '');
+      tile.dataset.id = b.id;
       if (!isTool && !isFolder) {
         tile.href = b.url;
         tile.target = '_blank';
         tile.rel = 'noopener';
-      } else {
-        tile.addEventListener('click', (e) => {
-          if (e.target.closest('.tile-act')) return;
-          if (isFolder) { currentFolder = b.id; renderTabs(); renderGrid(); }
-          else if (isTool) openTool(b.tool);
-        });
       }
       tile.draggable = true;
-      tile.dataset.id = b.id;
-      tile.style.animationDelay = `${0.05 * idx + 0.1}s`;
 
-      let host = '';
+      let host;
       if (isTool) host = b.tool === 'notes' ? 'local · autosaved' : 'local tool';
       else if (isFolder) {
         const count = bookmarks.filter(x => x.parent === b.id).length;
         host = count + ' item' + (count !== 1 ? 's' : '');
       } else {
-        try { host = new URL(b.url).hostname.replace(/^www\./, ''); } catch { host = b.url; }
+        try { host = new URL(b.url).hostname.replace(/^www\./, ''); } catch { host = b.url || ''; }
       }
 
-      tile.innerHTML = `
-        <div class="tile-actions">
-          <button class="tile-act" data-action="edit" title="edit">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 113 3L7 19l-4 1 1-4z"/></svg>
-          </button>
-          <button class="tile-act danger" data-action="delete" title="delete">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>
-          </button>
-        </div>
-        <div class="tile-head">
-          ${iconSvg(b.icon || (isFolder ? 'folder' : 'link'))}
-          <div class="tile-label">${escapeHtml(b.label || '')}</div>
-        </div>
-        <div class="tile-name">${escapeHtml(b.name || 'Unnamed')}</div>
-        <div class="tile-host">${escapeHtml(host)}</div>
-      `;
-
-      tile.querySelector('[data-action="edit"]').addEventListener('click', (e) => {
-        e.preventDefault(); e.stopPropagation();
-        openEditModal(b.id);
-      });
-      tile.querySelector('[data-action="delete"]').addEventListener('click', (e) => {
-        e.preventDefault(); e.stopPropagation();
-        const confirmText = isFolder
-          ? `Удалить папку "${b.name}"? Все плитки внутри будут перемещены в корень.`
-          : `Удалить "${b.name}"?`;
-        if (confirm(confirmText)) {
-          if (isFolder) {
-            bookmarks.forEach(x => { if (x.parent === b.id) x.parent = null; });
-          }
-          bookmarks = bookmarks.filter(x => x.id !== b.id);
-          save(DATA_KEY, bookmarks);
-          renderTabs(); renderGrid();
-          showToast('removed');
-        }
-      });
-
-      // drag&drop
-      tile.addEventListener('dragstart', (e) => {
-        tile.classList.add('dragging');
-        e.dataTransfer.setData('text/plain', b.id);
-      });
-      tile.addEventListener('dragend', () => tile.classList.remove('dragging'));
-      tile.addEventListener('dragover', (e) => { e.preventDefault(); tile.classList.add('drag-over'); });
-      tile.addEventListener('dragleave', () => tile.classList.remove('drag-over'));
-      tile.addEventListener('drop', (e) => {
-        e.preventDefault();
-        tile.classList.remove('drag-over');
-        const fromId = e.dataTransfer.getData('text/plain');
-        if (fromId === b.id) return;
-        if (isFolder && e.shiftKey) {
-          // Shift+drop в папку — переместить туда
-          const movedB = bookmarks.find(x => x.id === fromId);
-          if (movedB) { movedB.parent = b.id; save(DATA_KEY, bookmarks); renderGrid(); showToast('moved into folder'); return; }
-        }
-        const fromIdx = bookmarks.findIndex(x => x.id === fromId);
-        const toIdx = bookmarks.findIndex(x => x.id === b.id);
-        const [moved] = bookmarks.splice(fromIdx, 1);
-        bookmarks.splice(toIdx, 0, moved);
-        save(DATA_KEY, bookmarks);
-        renderGrid();
-      });
+      tile.innerHTML =
+        '<div class="tile-head">' +
+          iconSvg(b.icon || (isFolder ? 'folder' : 'link')) +
+          '<div class="tile-label">' + escapeHtml(b.label || '') + '</div>' +
+        '</div>' +
+        '<div class="tile-name">' + escapeHtml(b.name || 'Unnamed') + '</div>' +
+        '<div class="tile-host">' + escapeHtml(host) + '</div>' +
+        '<div class="tile-actions">' +
+          '<button class="tile-act" data-action="edit" title="edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 113 3L7 19l-4 1 1-4z"/></svg></button>' +
+          '<button class="tile-act danger" data-action="delete" title="delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>' +
+        '</div>';
 
       return tile;
     }
 
-    function makeCurrencyTile(pair, idx) {
+    function makeCurrencyTile(pair) {
       const tile = document.createElement('div');
       tile.className = 'tile tile-curr';
-      tile.style.animationDelay = `${0.05 * idx + 0.1}s`;
+      tile.dataset.curr = pair.from + '_' + pair.to;
 
       const rates = currCache.rates;
       const prevRates = currCache.prevRates;
@@ -2028,85 +2133,233 @@
             const arrow = diff > 0
               ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17l5-5 5 5M7 7l5-5 5 5"/></svg>'
               : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l5 5 5-5M7 17l5 5 5-5"/></svg>';
-            deltaHtml = `${arrow} ${diff > 0 ? '+' : ''}${pct}%`;
-          } else {
-            deltaHtml = '— flat';
-          }
-        } else {
-          deltaHtml = '— first run';
-        }
+            deltaHtml = arrow + ' ' + (diff > 0 ? '+' : '') + pct + '%';
+          } else deltaHtml = '— flat';
+        } else deltaHtml = '— first run';
       }
 
-      tile.innerHTML = `
-        <div class="tile-head">
-          ${iconSvg('bar')}
-          <div class="tile-label">currency</div>
-        </div>
-        <div class="curr-pair-name">${escapeHtml(pair.from)} → ${escapeHtml(pair.to)}</div>
-        <div class="curr-big">${val}</div>
-        <div class="curr-delta ${deltaCls}">${deltaHtml}</div>
-      `;
-      tile.addEventListener('click', () => fetchRates(true));
+      tile.innerHTML =
+        '<div class="tile-head">' + iconSvg('bar') + '<div class="tile-label">currency</div></div>' +
+        '<div class="curr-pair-name">' + escapeHtml(pair.from) + ' → ' + escapeHtml(pair.to) + '</div>' +
+        '<div class="curr-big">' + val + '</div>' +
+        '<div class="curr-delta ' + deltaCls + '">' + deltaHtml + '</div>' +
+        '<div class="tile-actions">' +
+          '<button class="tile-act danger" data-action="curr-remove" data-pair="' + escapeHtml(pair.from) + '_' + escapeHtml(pair.to) + '" title="remove pair"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>' +
+        '</div>';
       return tile;
     }
 
+    // event delegation на сетке
+    grid.addEventListener('click', (e) => {
+      // add tile
+      if (e.target.closest('#addTile')) { e.preventDefault(); openAddMenu(e.target.closest('#addTile')); return; }
+      // remove currency
+      const cr = e.target.closest('[data-action="curr-remove"]');
+      if (cr) {
+        e.preventDefault(); e.stopPropagation();
+        const [from, to] = cr.dataset.pair.split('_');
+        settings.currencyPairs = settings.currencyPairs.filter(p => !(p.from === from && p.to === to));
+        save(SETTINGS_KEY, settings);
+        renderGrid();
+        showToast('pair removed');
+        return;
+      }
+      const tile = e.target.closest('.tile');
+      if (!tile || !tile.dataset.id) return;
+      const b = bookmarks.find(x => x.id === tile.dataset.id);
+      if (!b) return;
+      // currency click — force refresh
+      if (tile.classList.contains('tile-curr')) { fetchRates(true); return; }
+      // actions
+      const act = e.target.closest('.tile-act');
+      if (act) {
+        e.preventDefault(); e.stopPropagation();
+        if (act.dataset.action === 'edit') openEditModal(b.id);
+        else if (act.dataset.action === 'delete') {
+          const isFolder = b.type === 'folder';
+          const txt = isFolder ? 'Delete folder "' + b.name + '"? Items inside move to root.' : 'Delete "' + b.name + '"?';
+          if (confirm(txt)) {
+            if (isFolder) bookmarks.forEach(x => { if (x.parent === b.id) x.parent = null; });
+            bookmarks = bookmarks.filter(x => x.id !== b.id);
+            save(DATA_KEY, bookmarks);
+            renderWsTabs(); renderGrid();
+            showToast('removed');
+          }
+        }
+        return;
+      }
+      // tool/folder click
+      if (b.type === 'folder') {
+        e.preventDefault();
+        currentFolder = b.id;
+        renderWsTabs(); renderGrid();
+      } else if (b.tool) {
+        e.preventDefault();
+        openTool(b.tool);
+      }
+      // ссылки откроются сами благодаря <a>
+    });
+
+    // drag&drop через delegation
+    let dragId = null;
+    grid.addEventListener('dragstart', (e) => {
+      const tile = e.target.closest('.tile');
+      if (!tile || !tile.dataset.id) return;
+      dragId = tile.dataset.id;
+      tile.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', dragId);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    grid.addEventListener('dragend', (e) => {
+      const tile = e.target.closest('.tile');
+      if (tile) tile.classList.remove('dragging');
+      dragId = null;
+    });
+    grid.addEventListener('dragover', (e) => {
+      const tile = e.target.closest('.tile');
+      if (!tile || !tile.dataset.id) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      // подсветка
+      grid.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+      tile.classList.add('drag-over');
+    });
+    grid.addEventListener('dragleave', (e) => {
+      const tile = e.target.closest('.tile');
+      if (tile) tile.classList.remove('drag-over');
+    });
+    grid.addEventListener('drop', (e) => {
+      const tile = e.target.closest('.tile');
+      if (!tile || !tile.dataset.id || !dragId || dragId === tile.dataset.id) return;
+      e.preventDefault();
+      tile.classList.remove('drag-over');
+      const targetB = bookmarks.find(x => x.id === tile.dataset.id);
+      if (targetB && targetB.type === 'folder' && e.shiftKey) {
+        const moved = bookmarks.find(x => x.id === dragId);
+        if (moved) { moved.parent = targetB.id; save(DATA_KEY, bookmarks); renderGrid(); showToast('moved into folder'); return; }
+      }
+      const fromIdx = bookmarks.findIndex(x => x.id === dragId);
+      const toIdx = bookmarks.findIndex(x => x.id === tile.dataset.id);
+      if (fromIdx === -1 || toIdx === -1) return;
+      const [moved] = bookmarks.splice(fromIdx, 1);
+      bookmarks.splice(toIdx, 0, moved);
+      save(DATA_KEY, bookmarks);
+      renderGrid();
+    });
+
     // ═══════════════════════════════════════════════════════
-    //                    MODAL (bookmark/folder)
+    //                    ADD MENU (popup)
     // ═══════════════════════════════════════════════════════
-    const modalBackdrop = document.getElementById('modalBackdrop');
-    const modalTitle = document.getElementById('modalTitle');
-    const fLabel = document.getElementById('fLabel');
-    const fName = document.getElementById('fName');
-    const fUrl = document.getElementById('fUrl');
-    const fTag = document.getElementById('fTag');
-    const urlField = document.getElementById('urlField');
-    const iconGrid = document.getElementById('iconGrid');
-    const deleteBtn = document.getElementById('deleteBtn');
-    const typeSelector = document.getElementById('typeSelector');
+    const addMenu = $('addMenu');
+
+    function openAddMenu(anchor) {
+      const rect = anchor.getBoundingClientRect();
+      // pos сверху от плитки
+      addMenu.style.left = Math.max(8, Math.min(window.innerWidth - 220, rect.left)) + 'px';
+      addMenu.style.top = (window.scrollY + rect.top - 8) + 'px';
+      addMenu.style.transform = 'translateY(-100%)';
+
+      addMenu.innerHTML =
+        '<div class="add-menu-label">Add</div>' +
+        '<div class="add-menu-item" data-add="bookmark">' + iconSvg('link','') + 'Bookmark</div>' +
+        '<div class="add-menu-item" data-add="folder">' + iconSvg('folder','') + 'Folder</div>' +
+        '<div class="add-menu-sep"></div>' +
+        '<div class="add-menu-label">Tools</div>' +
+        TOOLS.map(t => '<div class="add-menu-item" data-tool="' + t.id + '">' + iconSvg(t.icon,'') + escapeHtml(t.name) + '</div>').join('');
+
+      addMenu.classList.add('active');
+      // закрыть по клику снаружи
+      setTimeout(() => document.addEventListener('click', closeAddMenuOnce, { once: true }), 0);
+    }
+    function closeAddMenu() { addMenu.classList.remove('active'); }
+    function closeAddMenuOnce(e) {
+      if (addMenu.contains(e.target)) {
+        setTimeout(() => document.addEventListener('click', closeAddMenuOnce, { once: true }), 0);
+        return;
+      }
+      closeAddMenu();
+    }
+    addMenu.addEventListener('click', (e) => {
+      const item = e.target.closest('.add-menu-item');
+      if (!item) return;
+      closeAddMenu();
+      if (item.dataset.add === 'bookmark') openAddModal('bookmark');
+      else if (item.dataset.add === 'folder') openAddModal('folder');
+      else if (item.dataset.tool === 'currency') {
+        // add currency pair: дефолт USD->UAH
+        settings.currencyPairs.push({ from: 'USD', to: 'UAH', ws: settings.activeWs });
+        save(SETTINGS_KEY, settings);
+        renderGrid();
+        showToast('currency tile added · edit pairs in settings');
+      } else if (item.dataset.tool) {
+        // добавить tool-плитку
+        const tool = TOOLS.find(t => t.id === item.dataset.tool);
+        if (!tool) return;
+        // проверяем нет ли уже такой в этом workspace
+        const exists = bookmarks.find(b => b.tool === tool.id && b.ws === settings.activeWs && !b.parent);
+        if (exists) { showToast(tool.name + ' already in this workspace'); return; }
+        bookmarks.push({ id: uid(), label: 'tool', name: tool.name, tool: tool.id, icon: tool.icon, ws: settings.activeWs, parent: currentFolder });
+        save(DATA_KEY, bookmarks);
+        renderWsTabs(); renderGrid();
+        showToast(tool.name + ' added');
+      }
+    });
+
+    // ═══════════════════════════════════════════════════════
+    //                    BOOKMARK FORM
+    // ═══════════════════════════════════════════════════════
+    const modalBackdrop = $('modalBackdrop');
+    const modalTitle = $('modalTitle');
+    const fLabel = $('fLabel');
+    const fName = $('fName');
+    const fUrl = $('fUrl');
+    const urlField = $('urlField');
+    const iconGrid = $('iconGrid');
+    const deleteBtn = $('deleteBtn');
+    const typeSelector = $('typeSelector');
 
     function buildIconGrid() {
-      iconGrid.innerHTML = '';
+      const frag = document.createDocumentFragment();
       Object.keys(ICONS).forEach(name => {
         const opt = document.createElement('button');
         opt.className = 'icon-opt';
         opt.dataset.icon = name;
         opt.title = name;
         opt.innerHTML = iconSvg(name, '');
-        opt.addEventListener('click', () => {
-          selectedIcon = name;
-          iconGrid.querySelectorAll('.icon-opt').forEach(el => el.classList.toggle('selected', el.dataset.icon === name));
-        });
-        iconGrid.appendChild(opt);
+        frag.appendChild(opt);
       });
+      iconGrid.innerHTML = '';
+      iconGrid.appendChild(frag);
     }
+    iconGrid.addEventListener('click', (e) => {
+      const opt = e.target.closest('.icon-opt');
+      if (!opt) return;
+      selectedIcon = opt.dataset.icon;
+      iconGrid.querySelectorAll('.icon-opt').forEach(el => el.classList.toggle('selected', el === opt));
+    });
     function setSelectedIcon(name) {
       selectedIcon = name;
       iconGrid.querySelectorAll('.icon-opt').forEach(el => el.classList.toggle('selected', el.dataset.icon === name));
-    }
-    function rebuildTagSelect() {
-      fTag.innerHTML = '';
-      const none = new Option('— no tag —', '');
-      fTag.appendChild(none);
-      tags.forEach(t => fTag.appendChild(new Option(t.name, t.id)));
     }
     function setFormType(type) {
       editingType = type;
       typeSelector.querySelectorAll('.type-opt').forEach(b => b.classList.toggle('active', b.dataset.type === type));
       urlField.style.display = type === 'folder' ? 'none' : 'block';
     }
-    typeSelector.querySelectorAll('.type-opt').forEach(b => {
-      b.addEventListener('click', () => setFormType(b.dataset.type));
+    typeSelector.addEventListener('click', (e) => {
+      const opt = e.target.closest('.type-opt');
+      if (!opt) return;
+      setFormType(opt.dataset.type);
     });
 
-    function openAddModal() {
+    function openAddModal(type) {
       editingId = null;
-      modalTitle.textContent = currentFolder ? 'New item in folder' : 'New tile';
+      modalTitle.textContent = type === 'folder' ? 'New folder' : 'New bookmark';
       fLabel.value = ''; fName.value = ''; fUrl.value = '';
-      rebuildTagSelect();
-      fTag.value = currentTag !== 'all' ? currentTag : (tags[0]?.id || '');
-      setFormType('bookmark');
-      typeSelector.style.display = currentFolder ? 'none' : 'flex';  // нельзя создавать папку внутри папки
-      setSelectedIcon('link');
+      setFormType(type || 'bookmark');
+      typeSelector.style.display = currentFolder ? 'none' : 'flex';
+      if (currentFolder) setFormType('bookmark');  // нельзя папку в папке
+      setSelectedIcon(type === 'folder' ? 'folder' : 'link');
       deleteBtn.style.display = 'none';
       modalBackdrop.classList.add('active');
       setTimeout(() => fName.focus(), 50);
@@ -2120,8 +2373,6 @@
       fLabel.value = b.label || '';
       fName.value = b.name || '';
       fUrl.value = b.url || '';
-      rebuildTagSelect();
-      fTag.value = b.tag || '';
       setFormType(isFolder ? 'folder' : 'bookmark');
       typeSelector.style.display = (isTool || b.parent) ? 'none' : 'flex';
       urlField.style.display = (isTool || isFolder) ? 'none' : 'block';
@@ -2131,8 +2382,8 @@
       setTimeout(() => fName.focus(), 50);
     }
     function closeModal() { modalBackdrop.classList.remove('active'); editingId = null; }
-    document.getElementById('cancelBtn').addEventListener('click', closeModal);
-    document.getElementById('saveBtn').addEventListener('click', () => {
+    $('cancelBtn').addEventListener('click', closeModal);
+    $('saveBtn').addEventListener('click', () => {
       const name = fName.value.trim();
       const url = fUrl.value.trim();
       if (!name) { showToast('name required'); return; }
@@ -2140,7 +2391,6 @@
         const b = bookmarks.find(x => x.id === editingId);
         b.label = fLabel.value.trim();
         b.name = name;
-        b.tag = fTag.value || null;
         b.icon = selectedIcon;
         if (!b.tool && !b.type) b.url = url;
         if (editingType === 'folder') b.type = 'folder';
@@ -2152,7 +2402,7 @@
           label: fLabel.value.trim(),
           name,
           icon: selectedIcon,
-          tag: fTag.value || null,
+          ws: settings.activeWs,
           parent: currentFolder
         };
         if (editingType === 'folder') newB.type = 'folder';
@@ -2161,19 +2411,17 @@
         showToast('added');
       }
       save(DATA_KEY, bookmarks);
-      renderTabs(); renderGrid();
+      renderWsTabs(); renderGrid();
       closeModal();
     });
-    document.getElementById('deleteBtn').addEventListener('click', () => {
+    $('deleteBtn').addEventListener('click', () => {
       if (!editingId) return;
-      if (confirm('Удалить?')) {
+      if (confirm('Delete?')) {
         const b = bookmarks.find(x => x.id === editingId);
-        if (b && b.type === 'folder') {
-          bookmarks.forEach(x => { if (x.parent === editingId) x.parent = null; });
-        }
+        if (b && b.type === 'folder') bookmarks.forEach(x => { if (x.parent === editingId) x.parent = null; });
         bookmarks = bookmarks.filter(x => x.id !== editingId);
         save(DATA_KEY, bookmarks);
-        renderTabs(); renderGrid();
+        renderWsTabs(); renderGrid();
         closeModal();
         showToast('removed');
       }
@@ -2190,15 +2438,15 @@
     }
 
     // ═══════════════════════════════════════════════════════
-    //                    NOTES APP (multi-file + markdown)
+    //                    NOTES
     // ═══════════════════════════════════════════════════════
-    const notesBackdrop = document.getElementById('notesBackdrop');
-    const notesListBody = document.getElementById('notesListBody');
-    const notesEmpty = document.getElementById('notesEmpty');
-    const notesEditorContent = document.getElementById('notesEditorContent');
-    const noteTitle = document.getElementById('noteTitle');
-    const noteEditor = document.getElementById('noteEditor');
-    const notePreview = document.getElementById('notePreview');
+    const notesBackdrop = $('notesBackdrop');
+    const notesListBody = $('notesListBody');
+    const notesEmpty = $('notesEmpty');
+    const notesEditorContent = $('notesEditorContent');
+    const noteTitle = $('noteTitle');
+    const noteEditor = $('noteEditor');
+    const notePreview = $('notePreview');
 
     function openNotes() {
       notesBackdrop.classList.add('active');
@@ -2219,22 +2467,26 @@
         notesListBody.innerHTML = '<div style="padding: 1rem; color: var(--fg-dim); font-size: 0.7rem; text-align: center;">no notes yet</div>';
         return;
       }
-      // сортировка по updated DESC
       const sorted = [...notes].sort((a, b) => (b.updated || 0) - (a.updated || 0));
+      const frag = document.createDocumentFragment();
       sorted.forEach(n => {
         const row = document.createElement('div');
         row.className = 'note-row' + (n.id === activeNoteId ? ' active' : '');
-        const preview = (n.content || '').split('\n').filter(l => l.trim()).slice(0, 1)[0] || '';
+        row.dataset.id = n.id;
+        const preview = (n.content || '').split('\n').filter(l => l.trim())[0] || '';
         const d = new Date(n.updated || 0);
-        row.innerHTML = `
-          <div class="note-row-title">${escapeHtml(n.title || 'untitled')}</div>
-          <div class="note-row-preview">${escapeHtml(preview.slice(0, 60))}</div>
-          <div class="note-row-date">${d.toLocaleDateString('en-GB', { day:'2-digit', month:'short' })} · ${d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', hour12:false })}</div>
-        `;
-        row.addEventListener('click', () => selectNote(n.id));
-        notesListBody.appendChild(row);
+        row.innerHTML =
+          '<div class="note-row-title">' + escapeHtml(n.title || 'untitled') + '</div>' +
+          '<div class="note-row-preview">' + escapeHtml(preview.slice(0, 60)) + '</div>' +
+          '<div class="note-row-date">' + d.toLocaleDateString('en-GB', { day:'2-digit', month:'short' }) + ' · ' + d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', hour12:false }) + '</div>';
+        frag.appendChild(row);
       });
+      notesListBody.appendChild(frag);
     }
+    notesListBody.addEventListener('click', (e) => {
+      const row = e.target.closest('.note-row');
+      if (row) selectNote(row.dataset.id);
+    });
 
     function selectNote(id) {
       const n = notes.find(x => x.id === id);
@@ -2249,60 +2501,45 @@
     }
 
     function applyNotesMode() {
-      const ta = noteEditor;
-      const pv = notePreview;
-      if (notesMode === 'edit') { ta.style.display='block'; ta.style.width='100%'; pv.style.display='none'; }
-      else if (notesMode === 'preview') { ta.style.display='none'; pv.style.display='block'; pv.style.width='100%'; renderPreview(); }
-      else { ta.style.display='block'; ta.style.width='50%'; pv.style.display='block'; pv.style.width='50%'; pv.style.borderLeft='1px solid var(--border)'; renderPreview(); }
+      if (notesMode === 'edit') { noteEditor.style.display='block'; noteEditor.style.width='100%'; notePreview.style.display='none'; }
+      else if (notesMode === 'preview') { noteEditor.style.display='none'; notePreview.style.display='block'; notePreview.style.width='100%'; renderPreview(); }
+      else { noteEditor.style.display='block'; noteEditor.style.width='50%'; notePreview.style.display='block'; notePreview.style.width='50%'; notePreview.style.borderLeft='1px solid var(--border)'; renderPreview(); }
       document.querySelectorAll('.notes-mode-toggle button').forEach(b => b.classList.toggle('active', b.dataset.mode === notesMode));
     }
-    document.querySelectorAll('.notes-mode-toggle button').forEach(b => {
-      b.addEventListener('click', () => { notesMode = b.dataset.mode; applyNotesMode(); });
+    document.querySelector('.notes-mode-toggle').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-mode]');
+      if (!btn) return;
+      notesMode = btn.dataset.mode;
+      applyNotesMode();
     });
 
-    // тонкий markdown renderer (заголовки, жирный/курсив, код, ссылки, списки, цитаты, hr)
     function renderMarkdown(src) {
-      // экранируем HTML
       let s = escapeHtml(src);
-
-      // блоки кода ``` ```
-      s = s.replace(/```([\s\S]*?)```/g, (_, code) => `<pre><code>${code.trim()}</code></pre>`);
-      // инлайн код
+      s = s.replace(/```([\s\S]*?)```/g, (_, code) => '<pre><code>' + code.trim() + '</code></pre>');
       s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
-      // hr
       s = s.replace(/^---+$/gm, '<hr>');
-      // headings
       s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
       s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
       s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-      // blockquote
       s = s.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-      // bold + italic
       s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
       s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-      // ссылки [text](url)
       s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-      // списки (- или *)
       s = s.replace(/(^[-*] .+(?:\n[-*] .+)*)/gm, (block) => {
         const items = block.split('\n').map(l => l.replace(/^[-*] (.+)/, '<li>$1</li>')).join('');
-        return `<ul>${items}</ul>`;
+        return '<ul>' + items + '</ul>';
       });
-      // нумерованные
       s = s.replace(/(^\d+\. .+(?:\n\d+\. .+)*)/gm, (block) => {
         const items = block.split('\n').map(l => l.replace(/^\d+\. (.+)/, '<li>$1</li>')).join('');
-        return `<ol>${items}</ol>`;
+        return '<ol>' + items + '</ol>';
       });
-      // абзацы — оставшиеся блоки текста
       s = s.split(/\n{2,}/).map(p => {
         if (/^<(h\d|ul|ol|pre|blockquote|hr)/.test(p.trim())) return p;
-        return p.trim() ? `<p>${p.replace(/\n/g, '<br>')}</p>` : '';
+        return p.trim() ? '<p>' + p.replace(/\n/g, '<br>') + '</p>' : '';
       }).join('\n');
       return s;
     }
-
-    function renderPreview() {
-      notePreview.innerHTML = renderMarkdown(noteEditor.value);
-    }
+    function renderPreview() { notePreview.innerHTML = renderMarkdown(noteEditor.value); }
 
     function saveActiveNote() {
       if (!activeNoteId) return;
@@ -2320,16 +2557,16 @@
     noteTitle.addEventListener('input', scheduleNoteSave);
     noteEditor.addEventListener('input', () => { scheduleNoteSave(); if (notesMode === 'split') renderPreview(); });
 
-    document.getElementById('notesNewBtn').addEventListener('click', () => {
+    $('notesNewBtn').addEventListener('click', () => {
       const n = { id: uid(), title: 'untitled', content: '', updated: Date.now() };
       notes.push(n);
       save(NOTES_KEY, notes);
       selectNote(n.id);
       setTimeout(() => noteTitle.focus(), 50);
     });
-    document.getElementById('noteDelete').addEventListener('click', () => {
+    $('noteDelete').addEventListener('click', () => {
       if (!activeNoteId) return;
-      if (confirm('Удалить заметку?')) {
+      if (confirm('Delete this note?')) {
         notes = notes.filter(n => n.id !== activeNoteId);
         save(NOTES_KEY, notes);
         activeNoteId = null;
@@ -2339,75 +2576,126 @@
         showToast('note deleted');
       }
     });
-    document.getElementById('notesClose').addEventListener('click', closeNotes);
+    $('notesClose').addEventListener('click', closeNotes);
     notesBackdrop.addEventListener('click', (e) => { if (e.target === notesBackdrop) closeNotes(); });
 
     // ═══════════════════════════════════════════════════════
-    //                    TODO PANEL
+    //                    TODO
     // ═══════════════════════════════════════════════════════
-    const todoToggle = document.getElementById('todoToggle');
-    const todoPanel = document.getElementById('todoPanel');
-    const todoInput = document.getElementById('todoInput');
-    const todoListEl = document.getElementById('todoList');
-    const todoBadge = document.getElementById('todoBadge');
-    const todoStats = document.getElementById('todoStats');
-
+    function formatDeadlineRel(ts) {
+      const diff = ts - Date.now();
+      const absDiff = Math.abs(diff);
+      const overdue = diff < 0;
+      const mins = Math.floor(absDiff / 60000);
+      const hours = Math.floor(mins / 60);
+      const days = Math.floor(hours / 24);
+      let label;
+      if (mins < 1) label = overdue ? 'just overdue' : 'in <1m';
+      else if (mins < 60) label = (overdue ? mins + 'm ago' : 'in ' + mins + 'm');
+      else if (hours < 24) label = (overdue ? hours + 'h ago' : 'in ' + hours + 'h ' + (mins % 60) + 'm');
+      else label = (overdue ? days + 'd ago' : 'in ' + days + 'd ' + (hours % 24) + 'h');
+      return label;
+    }
+    function classifyTodo(t) {
+      if (!t.deadline || t.done) return 'normal';
+      const diff = t.deadline - Date.now();
+      if (diff < 0) return 'overdue';
+      if (diff <= 3600 * 1000) return 'urgent';
+      return 'normal';
+    }
     function renderTodos() {
       todoListEl.innerHTML = '';
-      const active = todos.filter(t => !t.done);
+      const active = todos.filter(t => !t.done).sort((a,b) => {
+        // сначала те у кого есть deadline и поскорее
+        const ad = a.deadline || Infinity;
+        const bd = b.deadline || Infinity;
+        return ad - bd;
+      });
       const done = todos.filter(t => t.done);
+      const frag = document.createDocumentFragment();
       if (active.length === 0 && done.length === 0) {
         todoListEl.innerHTML = '<div class="todo-empty">no tasks yet</div>';
       } else {
         if (active.length) {
           const lbl = document.createElement('div');
           lbl.className = 'todo-section-label';
-          lbl.textContent = `active · ${active.length}`;
-          todoListEl.appendChild(lbl);
-          active.forEach(t => todoListEl.appendChild(makeTodoItem(t)));
+          lbl.textContent = 'active · ' + active.length;
+          frag.appendChild(lbl);
+          active.forEach(t => frag.appendChild(makeTodoItem(t)));
         }
         if (done.length) {
           const lbl = document.createElement('div');
           lbl.className = 'todo-section-label';
-          lbl.textContent = `done · ${done.length}`;
-          todoListEl.appendChild(lbl);
-          done.forEach(t => todoListEl.appendChild(makeTodoItem(t)));
+          lbl.textContent = 'done · ' + done.length;
+          frag.appendChild(lbl);
+          done.forEach(t => frag.appendChild(makeTodoItem(t)));
         }
+        todoListEl.appendChild(frag);
       }
-      todoStats.textContent = `${done.length} of ${todos.length}`;
+
+      let urgentCount = 0;
+      let hasOverdue = false;
+      active.forEach(t => {
+        const c = classifyTodo(t);
+        if (c === 'urgent' || c === 'overdue') urgentCount++;
+        if (c === 'overdue') hasOverdue = true;
+      });
+      todoStats.textContent = done.length + ' of ' + todos.length;
       todoBadge.textContent = active.length;
       todoBadge.style.display = active.length > 0 ? 'flex' : 'none';
+      todoBadge.classList.toggle('urgent', urgentCount > 0);
     }
     function makeTodoItem(t) {
+      const cls = classifyTodo(t);
       const item = document.createElement('div');
-      item.className = 'todo-item' + (t.done ? ' done' : '');
-      item.innerHTML = `
-        <div class="todo-check">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        </div>
-        <div class="todo-text">${escapeHtml(t.text)}</div>
-        <button class="todo-del" title="delete">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-        </button>
-      `;
-      item.querySelector('.todo-check').addEventListener('click', () => { t.done = !t.done; save(TODO_KEY, todos); renderTodos(); });
-      item.querySelector('.todo-text').addEventListener('click', () => { t.done = !t.done; save(TODO_KEY, todos); renderTodos(); });
-      item.querySelector('.todo-del').addEventListener('click', (e) => { e.stopPropagation(); todos = todos.filter(x => x.id !== t.id); save(TODO_KEY, todos); renderTodos(); });
+      item.className = 'todo-item' + (t.done ? ' done' : '') + (cls !== 'normal' ? ' ' + cls : '');
+      item.dataset.id = t.id;
+      let deadlineHtml = '';
+      if (t.deadline) {
+        deadlineHtml =
+          '<div class="todo-deadline">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' +
+            escapeHtml(formatDeadlineRel(t.deadline)) +
+          '</div>';
+      }
+      item.innerHTML =
+        '<div class="todo-check" data-act="toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>' +
+        '<div class="todo-text-wrap">' +
+          '<div class="todo-text" data-act="toggle">' + escapeHtml(t.text) + '</div>' +
+          deadlineHtml +
+        '</div>' +
+        '<button class="todo-del" data-act="delete" title="delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>';
       return item;
     }
+    todoListEl.addEventListener('click', (e) => {
+      const item = e.target.closest('.todo-item');
+      if (!item) return;
+      const t = todos.find(x => x.id === item.dataset.id);
+      if (!t) return;
+      const actEl = e.target.closest('[data-act]');
+      const act = actEl ? actEl.dataset.act : null;
+      if (act === 'toggle') { t.done = !t.done; save(TODO_KEY, todos); renderTodos(); updateDeadlineBadge(); }
+      else if (act === 'delete') { todos = todos.filter(x => x.id !== t.id); save(TODO_KEY, todos); renderTodos(); updateDeadlineBadge(); }
+    });
     function addTodo() {
       const v = todoInput.value.trim();
       if (!v) return;
-      todos.unshift({ id: uid(), text: v, done: false, created: Date.now() });
+      const dl = todoDeadline.value;
+      const todo = { id: uid(), text: v, done: false, created: Date.now() };
+      if (dl) todo.deadline = new Date(dl).getTime();
+      todos.unshift(todo);
       save(TODO_KEY, todos);
       todoInput.value = '';
+      todoDeadline.value = '';
       renderTodos();
+      updateDeadlineBadge();
     }
     todoToggle.addEventListener('click', () => todoPanel.classList.toggle('open'));
-    document.getElementById('todoClose').addEventListener('click', () => todoPanel.classList.remove('open'));
-    document.getElementById('todoAddBtn').addEventListener('click', addTodo);
+    $('todoClose').addEventListener('click', () => todoPanel.classList.remove('open'));
+    $('todoAddBtn').addEventListener('click', addTodo);
+    $('todoDeadlineClear').addEventListener('click', () => { todoDeadline.value = ''; });
     todoInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addTodo(); });
-    document.getElementById('todoClearDone').addEventListener('click', () => {
+    $('todoClearDone').addEventListener('click', () => {
       todos = todos.filter(t => !t.done);
       save(TODO_KEY, todos);
       renderTodos();
@@ -2415,12 +2703,40 @@
     });
 
     // ═══════════════════════════════════════════════════════
+    //                    DEADLINE BADGE
+    // ═══════════════════════════════════════════════════════
+    function findMostUrgentTodo() {
+      // первый task с deadline < 1 час (или просроченный)
+      let candidate = null;
+      for (const t of todos) {
+        if (t.done || !t.deadline) continue;
+        const diff = t.deadline - Date.now();
+        if (diff > 3600 * 1000) continue; // больше часа
+        if (!candidate || t.deadline < candidate.deadline) candidate = t;
+      }
+      return candidate;
+    }
+    function updateDeadlineBadge() {
+      if (!settings.widgets.deadline) { deadlineBadge.style.display = 'none'; return; }
+      const t = findMostUrgentTodo();
+      if (!t) { deadlineBadge.style.display = 'none'; return; }
+      const overdue = (t.deadline - Date.now()) < 0;
+      deadlineBadge.classList.toggle('overdue', overdue);
+      deadlineBadge.style.display = 'block';
+      deadlineBadge.innerHTML =
+        '<div class="deadline-badge-label">' + (overdue ? 'overdue' : 'due soon') + '</div>' +
+        '<div class="deadline-badge-text">' + escapeHtml(t.text) + '</div>' +
+        '<div class="deadline-badge-time">' + escapeHtml(formatDeadlineRel(t.deadline)) + '</div>';
+    }
+    deadlineBadge.addEventListener('click', () => todoPanel.classList.add('open'));
+
+    // ═══════════════════════════════════════════════════════
     //                    PASSWORD GEN
     // ═══════════════════════════════════════════════════════
-    const passBackdrop = document.getElementById('passBackdrop');
-    const pgResult = document.getElementById('pgResult');
-    const pgLen = document.getElementById('pgLen');
-    const pgLenVal = document.getElementById('pgLenVal');
+    const passBackdrop = $('passBackdrop');
+    const pgResult = $('pgResult');
+    const pgLen = $('pgLen');
+    const pgLenVal = $('pgLenVal');
     let currentPreset = 'strong';
     const WORDS = ['apple','river','cloud','stone','tiger','plant','horse','tower','glass','field','green','quick','smart','solid','brave','light','north','south','metal','paper','swift','prime','spark','flame','frost','storm','ocean','piano','quiet','vivid','radio','jazz','lemon','mango','peach','onyx','ruby','jade','amber','coral','noble','silver','gold','crimson','azure','olive','indigo','violet','bronze','copper','marble','crystal'];
 
@@ -2455,23 +2771,26 @@
     }
     function openPassgen() { passBackdrop.classList.add('active'); setPreset(currentPreset); }
     function closePassgen() { passBackdrop.classList.remove('active'); }
-    document.querySelectorAll('#passBackdrop .type-opt').forEach(b => b.addEventListener('click', () => setPreset(b.dataset.preset)));
+    document.querySelector('#passBackdrop').addEventListener('click', (e) => {
+      const opt = e.target.closest('.type-opt');
+      if (opt) setPreset(opt.dataset.preset);
+      if (e.target === passBackdrop) closePassgen();
+    });
     pgLen.addEventListener('input', () => { pgLenVal.textContent = pgLen.value; generatePassword(); });
-    document.getElementById('pgRegen').addEventListener('click', generatePassword);
-    document.getElementById('pgCopy').addEventListener('click', async () => {
+    $('pgRegen').addEventListener('click', generatePassword);
+    $('pgCopy').addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(pgResult.textContent); showToast('copied'); }
       catch { showToast('clipboard blocked'); }
     });
-    document.getElementById('pgClose').addEventListener('click', closePassgen);
-    passBackdrop.addEventListener('click', (e) => { if (e.target === passBackdrop) closePassgen(); });
+    $('pgClose').addEventListener('click', closePassgen);
 
     // ═══════════════════════════════════════════════════════
-    //                    PHONE LOOKUP (compact version)
+    //                    PHONE LOOKUP
     // ═══════════════════════════════════════════════════════
-    const phoneBackdrop = document.getElementById('phoneBackdrop');
-    const phoneInput = document.getElementById('phoneInput');
-    const phoneResult = document.getElementById('phoneResult');
-    const phoneLinks = document.getElementById('phoneLinks');
+    const phoneBackdrop = $('phoneBackdrop');
+    const phoneInput = $('phoneInput');
+    const phoneResult = $('phoneResult');
+    const phoneLinks = $('phoneLinks');
     let lastValidE164 = null;
     const COUNTRY_CODES = {
       '1':['US/CA','🇺🇸'],'7':['Russia/KZ','🇷🇺'],'20':['Egypt','🇪🇬'],'27':['South Africa','🇿🇦'],
@@ -2511,41 +2830,39 @@
       const cleaned = input.replace(/[^\d+]/g, '');
       const digits = cleaned.replace(/^\+/, '');
       if (digits.length < 6 || digits.length > 15) {
-        phoneResult.innerHTML = `<div style="color:var(--danger);font-family:var(--mono);font-size:0.8rem;">invalid: ${digits.length < 6 ? 'too short' : 'too long'}</div>`;
+        phoneResult.innerHTML = '<div style="color:var(--danger);font-family:var(--mono);font-size:0.8rem;">invalid: ' + (digits.length < 6 ? 'too short' : 'too long') + '</div>';
         phoneLinks.style.display = 'none'; lastValidE164 = null; return;
       }
       const country = lookupCountry(digits);
       if (!country) {
-        phoneResult.innerHTML = `<div style="color:var(--danger);font-family:var(--mono);font-size:0.8rem;">unknown country code</div>`;
+        phoneResult.innerHTML = '<div style="color:var(--danger);font-family:var(--mono);font-size:0.8rem;">unknown country code</div>';
         phoneLinks.style.display = 'none'; lastValidE164 = null; return;
       }
       const e164 = '+' + digits;
       const national = digits.slice(country.code.length);
       lastValidE164 = e164;
-      phoneResult.innerHTML = `
-        <div style="display:grid;grid-template-columns:auto 1fr;gap:0.6rem 1rem;font-family:var(--mono);font-size:0.8rem;">
-          <span style="color:var(--fg-dim);text-transform:uppercase;letter-spacing:0.2em;font-size:0.65rem;">country</span>
-          <span><span style="font-size:1.2rem;margin-right:0.3rem;">${country.flag}</span>${escapeHtml(country.name)} (+${country.code})</span>
-          <span style="color:var(--fg-dim);text-transform:uppercase;letter-spacing:0.2em;font-size:0.65rem;">E.164</span>
-          <span style="color:var(--success);">${escapeHtml(e164)}</span>
-          <span style="color:var(--fg-dim);text-transform:uppercase;letter-spacing:0.2em;font-size:0.65rem;">national</span>
-          <span>${escapeHtml(national)}</span>
-          <span style="color:var(--fg-dim);text-transform:uppercase;letter-spacing:0.2em;font-size:0.65rem;">digits</span>
-          <span>${digits.length}</span>
-        </div>
-      `;
-      phoneLinks.innerHTML = `
-        <a class="btn btn-small" href="https://www.google.com/search?q=${encodeURIComponent(e164)}" target="_blank" rel="noopener" style="flex:1;text-align:center;text-decoration:none;">google</a>
-        <a class="btn btn-small" href="https://www.truecaller.com/search/in/${encodeURIComponent(digits)}" target="_blank" rel="noopener" style="flex:1;text-align:center;text-decoration:none;">truecaller</a>
-        <a class="btn btn-small" href="tel:${e164}" style="flex:1;text-align:center;text-decoration:none;">call</a>
-      `;
+      phoneResult.innerHTML =
+        '<div style="display:grid;grid-template-columns:auto 1fr;gap:0.6rem 1rem;font-family:var(--mono);font-size:0.8rem;">' +
+          '<span style="color:var(--fg-dim);text-transform:uppercase;letter-spacing:0.2em;font-size:0.65rem;">country</span>' +
+          '<span><span style="font-size:1.2rem;margin-right:0.3rem;">' + country.flag + '</span>' + escapeHtml(country.name) + ' (+' + country.code + ')</span>' +
+          '<span style="color:var(--fg-dim);text-transform:uppercase;letter-spacing:0.2em;font-size:0.65rem;">E.164</span>' +
+          '<span style="color:var(--success);">' + escapeHtml(e164) + '</span>' +
+          '<span style="color:var(--fg-dim);text-transform:uppercase;letter-spacing:0.2em;font-size:0.65rem;">national</span>' +
+          '<span>' + escapeHtml(national) + '</span>' +
+          '<span style="color:var(--fg-dim);text-transform:uppercase;letter-spacing:0.2em;font-size:0.65rem;">digits</span>' +
+          '<span>' + digits.length + '</span>' +
+        '</div>';
+      phoneLinks.innerHTML =
+        '<a class="btn btn-small" href="https://www.google.com/search?q=' + encodeURIComponent(e164) + '" target="_blank" rel="noopener" style="flex:1;text-align:center;text-decoration:none;">google</a>' +
+        '<a class="btn btn-small" href="https://www.truecaller.com/search/in/' + encodeURIComponent(digits) + '" target="_blank" rel="noopener" style="flex:1;text-align:center;text-decoration:none;">truecaller</a>' +
+        '<a class="btn btn-small" href="tel:' + e164 + '" style="flex:1;text-align:center;text-decoration:none;">call</a>';
       phoneLinks.style.display = 'flex';
     }
     phoneInput.addEventListener('input', () => renderPhone(phoneInput.value));
     function openPhone() { phoneBackdrop.classList.add('active'); setTimeout(() => phoneInput.focus(), 50); renderPhone(phoneInput.value); }
     function closePhone() { phoneBackdrop.classList.remove('active'); }
-    document.getElementById('phoneClose').addEventListener('click', closePhone);
-    document.getElementById('phoneCopy').addEventListener('click', async () => {
+    $('phoneClose').addEventListener('click', closePhone);
+    $('phoneCopy').addEventListener('click', async () => {
       if (!lastValidE164) { showToast('no valid number'); return; }
       try { await navigator.clipboard.writeText(lastValidE164); showToast('e.164 copied'); }
       catch { showToast('clipboard blocked'); }
@@ -2555,8 +2872,6 @@
     // ═══════════════════════════════════════════════════════
     //                    AI BAR
     // ═══════════════════════════════════════════════════════
-    const aibar = document.getElementById('aibar');
-    const aiInput = document.getElementById('aiInput');
     const AI_URLS = {
       claude: { base: 'https://claude.ai/new', param: 'q' },
       gpt: { base: 'https://chatgpt.com/', param: 'q' },
@@ -2579,17 +2894,20 @@
       }
       aiInput.value = '';
     }
-    document.querySelectorAll('.ai-btn').forEach(btn => btn.addEventListener('click', () => askAi(btn.dataset.ai)));
+    aibar.addEventListener('click', (e) => {
+      const btn = e.target.closest('.ai-btn');
+      if (btn) askAi(btn.dataset.ai);
+    });
     aiInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askAi('claude'); }
     });
 
     // ═══════════════════════════════════════════════════════
-    //                    COMMAND PALETTE (Ctrl+Space)
+    //                    COMMAND PALETTE
     // ═══════════════════════════════════════════════════════
-    const cmdk = document.getElementById('cmdk');
-    const cmdkInput = document.getElementById('cmdkInput');
-    const cmdkList = document.getElementById('cmdkList');
+    const cmdk = $('cmdk');
+    const cmdkInput = $('cmdkInput');
+    const cmdkList = $('cmdkList');
     let cmdkIdx = 0;
     let cmdkItems = [];
 
@@ -2615,41 +2933,49 @@
           tw:{name:'Twitter',url:'https://twitter.com/search?q='+encodeURIComponent(term),icon:'activity',hint:'twitter'},
           so:{name:'Stack Overflow',url:'https://stackoverflow.com/search?q='+encodeURIComponent(term),icon:'code',hint:'so'}
         };
-        cmdkItems.push({ ...map[cmd], queryHint:`"${term}"` });
+        cmdkItems.push(Object.assign({}, map[cmd], { queryHint: '"' + term + '"' }));
       }
       bookmarks.filter(b => !b.tool && !b.type).forEach(b => {
-        const hay = `${b.name} ${b.label} ${b.url}`.toLowerCase();
+        const hay = (b.name + ' ' + (b.label||'') + ' ' + (b.url||'')).toLowerCase();
         if (!q || hay.includes(q)) cmdkItems.push({ name:b.name, url:b.url, icon:b.icon||'link', hint:b.label||'' });
       });
-      // FALLBACK — всегда добавляем Google search в конец, если есть текст
       if (q && !m) {
-        cmdkItems.push({ name:`Search Google for "${query}"`, url:'https://google.com/search?q='+encodeURIComponent(query), icon:'globe', hint:'fallback', isFallback:true });
+        cmdkItems.push({ name:'Search Google for "' + query + '"', url:'https://google.com/search?q='+encodeURIComponent(query), icon:'globe', hint:'fallback' });
       }
       if (cmdkItems.length === 0) {
         cmdkList.innerHTML = '<div class="cmdk-empty">type to search · enter for google</div>';
         return;
       }
+      const frag = document.createDocumentFragment();
       cmdkItems.forEach((it, i) => {
         const el = document.createElement('div');
         el.className = 'cmdk-item' + (i === cmdkIdx ? ' active' : '');
+        el.dataset.i = i;
         let host = '';
         try { host = new URL(it.url).hostname.replace(/^www\./, ''); } catch { host = it.url; }
-        el.innerHTML = `
-          ${iconSvg(it.icon, '')}
-          <div class="cmdk-item-text">
-            <div class="cmdk-item-name">${escapeHtml(it.name)}${it.queryHint ? ' · ' + escapeHtml(it.queryHint) : ''}</div>
-            <div class="cmdk-item-host">${escapeHtml(host)}</div>
-          </div>
-          <div class="cmdk-item-hint">${escapeHtml(it.hint || '')}</div>
-        `;
-        el.addEventListener('click', () => { window.open(it.url, '_blank', 'noopener'); closeCmdk(); });
-        el.addEventListener('mouseenter', () => {
-          cmdkIdx = i;
-          [...cmdkList.children].forEach((c, j) => c.classList.toggle('active', j === i));
-        });
-        cmdkList.appendChild(el);
+        el.innerHTML =
+          iconSvg(it.icon, '') +
+          '<div class="cmdk-item-text">' +
+            '<div class="cmdk-item-name">' + escapeHtml(it.name) + (it.queryHint ? ' · ' + escapeHtml(it.queryHint) : '') + '</div>' +
+            '<div class="cmdk-item-host">' + escapeHtml(host) + '</div>' +
+          '</div>' +
+          '<div class="cmdk-item-hint">' + escapeHtml(it.hint || '') + '</div>';
+        frag.appendChild(el);
       });
+      cmdkList.appendChild(frag);
     }
+    cmdkList.addEventListener('click', (e) => {
+      const el = e.target.closest('.cmdk-item');
+      if (!el) return;
+      const it = cmdkItems[+el.dataset.i];
+      if (it) { window.open(it.url, '_blank', 'noopener'); closeCmdk(); }
+    });
+    cmdkList.addEventListener('mouseover', (e) => {
+      const el = e.target.closest('.cmdk-item');
+      if (!el) return;
+      cmdkIdx = +el.dataset.i;
+      cmdkList.querySelectorAll('.cmdk-item').forEach((c, j) => c.classList.toggle('active', j === cmdkIdx));
+    });
     cmdkInput.addEventListener('input', () => { cmdkIdx = 0; renderCmdk(cmdkInput.value); });
     cmdkInput.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { closeCmdk(); return; }
@@ -2660,30 +2986,34 @@
         const it = cmdkItems[cmdkIdx];
         if (it) { window.open(it.url, '_blank', 'noopener'); closeCmdk(); }
         else if (cmdkInput.value.trim()) {
-          // прямой fallback на Google
           window.open('https://google.com/search?q=' + encodeURIComponent(cmdkInput.value), '_blank', 'noopener');
           closeCmdk();
         }
       }
     });
     cmdk.addEventListener('click', (e) => { if (e.target === cmdk) closeCmdk(); });
-    document.getElementById('cmdkBtn').addEventListener('click', openCmdk);
+    $('cmdkBtn').addEventListener('click', openCmdk);
 
     // ═══════════════════════════════════════════════════════
     //                    SETTINGS
     // ═══════════════════════════════════════════════════════
-    const settingsBackdrop = document.getElementById('settingsBackdrop');
+    const settingsBackdrop = $('settingsBackdrop');
 
     function openSettings(scrollTo) {
       settingsBackdrop.classList.add('active');
       buildSettingsUI();
-      if (scrollTo === 'tags') {
-        setTimeout(() => settingsBackdrop.querySelector('h3:last-of-type')?.scrollIntoView({behavior:'smooth'}), 100);
+      if (scrollTo === 'workspaces') {
+        setTimeout(() => {
+          const headings = settingsBackdrop.querySelectorAll('h3');
+          for (const h of headings) {
+            if (h.textContent === 'Workspaces') { h.scrollIntoView({behavior:'smooth'}); break; }
+          }
+        }, 100);
       }
     }
     function closeSettings() { settingsBackdrop.classList.remove('active'); }
-    document.getElementById('settingsBtn').addEventListener('click', () => openSettings());
-    document.getElementById('settingsClose').addEventListener('click', closeSettings);
+    $('settingsBtn').addEventListener('click', () => openSettings());
+    $('settingsClose').addEventListener('click', closeSettings);
     settingsBackdrop.addEventListener('click', (e) => { if (e.target === settingsBackdrop) closeSettings(); });
 
     function buildSettingsUI() {
@@ -2699,14 +3029,14 @@
         };
       });
       // cols
-      const colsRoot = document.getElementById('setColsRoot');
+      const colsRoot = $('setColsRoot');
       colsRoot.value = settings.cols.root;
       colsRoot.onchange = () => {
         const v = Math.max(2, Math.min(8, parseInt(colsRoot.value) || 4));
         settings.cols.root = v; colsRoot.value = v;
         save(SETTINGS_KEY, settings); applyTheme(); renderGrid();
       };
-      const colsFolder = document.getElementById('setColsFolder');
+      const colsFolder = $('setColsFolder');
       colsFolder.value = settings.cols.folder;
       colsFolder.onchange = () => {
         const v = Math.max(2, Math.min(8, parseInt(colsFolder.value) || 4));
@@ -2714,20 +3044,19 @@
         save(SETTINGS_KEY, settings); if (currentFolder) renderGrid();
       };
       // themes
-      const themeList = document.getElementById('themeList');
+      const themeList = $('themeList');
       themeList.innerHTML = '';
       Object.entries(THEMES).forEach(([key, t]) => {
         const opt = document.createElement('button');
         opt.className = 'theme-opt' + (settings.theme === key ? ' active' : '');
-        opt.innerHTML = `
-          <div class="theme-swatches">
-            <div class="theme-swatch" style="background:${t.vars['--bg']}"></div>
-            <div class="theme-swatch" style="background:${t.vars['--bg-2']}"></div>
-            <div class="theme-swatch" style="background:${t.vars['--accent']}"></div>
-            <div class="theme-swatch" style="background:${t.vars['--accent-bright']}"></div>
-          </div>
-          <div class="theme-name">${escapeHtml(t.name)}</div>
-        `;
+        opt.innerHTML =
+          '<div class="theme-swatches">' +
+            '<div class="theme-swatch" style="background:' + t.vars['--bg'] + '"></div>' +
+            '<div class="theme-swatch" style="background:' + t.vars['--bg-2'] + '"></div>' +
+            '<div class="theme-swatch" style="background:' + t.vars['--accent'] + '"></div>' +
+            '<div class="theme-swatch" style="background:' + t.vars['--accent-bright'] + '"></div>' +
+          '</div>' +
+          '<div class="theme-name">' + escapeHtml(t.name) + '</div>';
         opt.onclick = () => {
           settings.theme = key;
           settings.customVars = null;
@@ -2741,31 +3070,28 @@
       const cv = settings.customVars || THEMES[settings.theme].vars;
       ['Accent','AccentBright','Bg','Fg'].forEach(name => {
         const lower = { Accent: '--accent', AccentBright: '--accent-bright', Bg: '--bg', Fg: '--fg' }[name];
-        const c = document.getElementById('c' + name);
-        const h = document.getElementById('c' + name + 'Hex');
+        const c = $('c' + name);
+        const h = $('c' + name + 'Hex');
         const val = cv[lower] || '#000000';
-        // приводим к hex если возможно
-        const hex = /^#/.test(val) ? val : rgbToHex(val) || '#000000';
+        const hex = /^#/.test(val) ? val : (rgbToHex(val) || '#000000');
         c.value = hex; h.value = hex;
         c.oninput = () => { h.value = c.value; };
         h.oninput = () => { if (/^#[0-9a-fA-F]{6}$/.test(h.value)) c.value = h.value; };
       });
-      document.getElementById('applyCustomTheme').onclick = () => {
-        const newVars = {
-          '--accent': document.getElementById('cAccent').value,
-          '--accent-bright': document.getElementById('cAccentBright').value,
-          '--bg': document.getElementById('cBg').value,
-          '--fg': document.getElementById('cFg').value
+      $('applyCustomTheme').onclick = () => {
+        settings.customVars = {
+          '--accent': $('cAccent').value,
+          '--accent-bright': $('cAccentBright').value,
+          '--bg': $('cBg').value,
+          '--fg': $('cFg').value
         };
-        settings.customVars = newVars;
         save(SETTINGS_KEY, settings);
         applyTheme();
         showToast('custom theme applied');
       };
-      // custom CSS
-      const cssArea = document.getElementById('customCss');
+      const cssArea = $('customCss');
       cssArea.value = settings.customCss || '';
-      document.getElementById('applyCustomCss').onclick = () => {
+      $('applyCustomCss').onclick = () => {
         settings.customCss = cssArea.value;
         save(SETTINGS_KEY, settings);
         applyTheme();
@@ -2773,33 +3099,33 @@
       };
       // currency pairs
       renderCurrencyPairs();
-      document.getElementById('addCurrencyPair').onclick = () => {
-        settings.currencyPairs.push({ from: 'USD', to: 'UAH' });
+      $('addCurrencyPair').onclick = () => {
+        settings.currencyPairs.push({ from: 'USD', to: 'UAH', ws: settings.activeWs });
         save(SETTINGS_KEY, settings);
         renderCurrencyPairs();
         renderGrid();
       };
-      // tags
-      renderTagsSettings();
-      const newTagInput = document.getElementById('newTagInput');
-      document.getElementById('addTagBtn').onclick = () => {
-        const v = newTagInput.value.trim();
+      // workspaces
+      renderWsSettings();
+      const newWsInput = $('newWsInput');
+      $('addWsBtn').onclick = () => {
+        const v = newWsInput.value.trim();
         if (!v) return;
-        const id = v.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-        if (tags.find(t => t.id === id)) { showToast('exists'); return; }
-        tags.push({ id, name: v });
-        save(TAGS_KEY, tags);
-        newTagInput.value = '';
-        renderTagsSettings();
-        renderTabs();
+        let id = v.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        if (!id) id = 'ws-' + uid().slice(0,4);
+        if (workspaces.find(w => w.id === id)) { showToast('already exists'); return; }
+        workspaces.push({ id, name: v.toUpperCase() });
+        save(WS_KEY, workspaces);
+        newWsInput.value = '';
+        renderWsSettings();
+        renderWsTabs();
       };
-      newTagInput.onkeydown = (e) => { if (e.key === 'Enter') document.getElementById('addTagBtn').click(); };
-      // reset all
-      document.getElementById('resetAllBtn').onclick = () => {
-        if (confirm('Сбросить ВСЁ к дефолтам? (закладки, заметки, задачи, настройки)')) {
+      newWsInput.onkeydown = (e) => { if (e.key === 'Enter') $('addWsBtn').click(); };
+      $('resetAllBtn').onclick = () => {
+        if (confirm('Reset EVERYTHING to defaults? (bookmarks, notes, tasks, settings, workspaces)')) {
           localStorage.removeItem(DATA_KEY);
           localStorage.removeItem(SETTINGS_KEY);
-          localStorage.removeItem(TAGS_KEY);
+          localStorage.removeItem(WS_KEY);
           localStorage.removeItem(NOTES_KEY);
           localStorage.removeItem(TODO_KEY);
           localStorage.removeItem(CURR_CACHE_KEY);
@@ -2807,15 +3133,13 @@
         }
       };
     }
-
     function rgbToHex(rgb) {
       const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
       if (!m) return null;
       return '#' + [m[1],m[2],m[3]].map(x => parseInt(x).toString(16).padStart(2,'0')).join('');
     }
-
     function renderCurrencyPairs() {
-      const wrap = document.getElementById('currencyPairsList');
+      const wrap = $('currencyPairsList');
       wrap.innerHTML = '';
       const currencies = ['USD','EUR','UAH','PLN','GBP','RUB','CHF','CNY','JPY','TRY','KZT','BYN'];
       settings.currencyPairs.forEach((pair, i) => {
@@ -2828,39 +3152,53 @@
           toSel.appendChild(new Option(c, c));
         });
         fromSel.value = pair.from; toSel.value = pair.to;
+        const wsSel = document.createElement('select');
+        workspaces.forEach(w => wsSel.appendChild(new Option(w.name, w.id)));
+        wsSel.value = pair.ws || settings.activeWs;
         const arrow = document.createElement('span');
         arrow.textContent = '→'; arrow.style.color = 'var(--fg-dim)';
+        const wsLabel = document.createElement('span');
+        wsLabel.textContent = '@'; wsLabel.style.color = 'var(--fg-dim)';
         const del = document.createElement('button');
         del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>';
         del.onclick = () => { settings.currencyPairs.splice(i, 1); save(SETTINGS_KEY, settings); renderCurrencyPairs(); renderGrid(); };
         fromSel.onchange = () => { settings.currencyPairs[i].from = fromSel.value; save(SETTINGS_KEY, settings); renderGrid(); };
         toSel.onchange = () => { settings.currencyPairs[i].to = toSel.value; save(SETTINGS_KEY, settings); renderGrid(); };
-        row.appendChild(fromSel); row.appendChild(arrow); row.appendChild(toSel); row.appendChild(del);
+        wsSel.onchange = () => { settings.currencyPairs[i].ws = wsSel.value; save(SETTINGS_KEY, settings); renderGrid(); };
+        row.appendChild(fromSel); row.appendChild(arrow); row.appendChild(toSel);
+        row.appendChild(wsLabel); row.appendChild(wsSel); row.appendChild(del);
         wrap.appendChild(row);
       });
     }
-
-    function renderTagsSettings() {
-      const wrap = document.getElementById('tagsListSettings');
+    function renderWsSettings() {
+      const wrap = $('wsListSettings');
       wrap.innerHTML = '';
-      tags.forEach((t, i) => {
+      workspaces.forEach((w, i) => {
         const row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0;';
+        row.className = 'ws-row';
         const name = document.createElement('input');
-        name.value = t.name;
-        name.style.cssText = 'flex:1;background:var(--bg);border:1px solid var(--border-strong);color:var(--fg);padding:0.4rem 0.6rem;border-radius:4px;font-family:var(--mono);font-size:0.8rem;';
-        name.oninput = () => { t.name = name.value; save(TAGS_KEY, tags); renderTabs(); };
+        name.value = w.name;
+        name.oninput = () => { w.name = name.value; save(WS_KEY, workspaces); renderWsTabs(); };
         const del = document.createElement('button');
         del.className = 'btn btn-small btn-danger';
         del.textContent = 'remove';
         del.onclick = () => {
-          if (!confirm(`Удалить тег "${t.name}"? Плитки сохранятся.`)) return;
-          bookmarks.forEach(b => { if (b.tag === t.id) b.tag = null; });
-          tags.splice(i, 1);
-          save(TAGS_KEY, tags);
+          if (workspaces.length <= 1) { showToast('cannot delete the last one'); return; }
+          const itemCount = bookmarks.filter(b => b.ws === w.id).length;
+          const msg = itemCount > 0
+            ? 'Delete "' + w.name + '"? ' + itemCount + ' tile(s) will be moved to the first workspace.'
+            : 'Delete "' + w.name + '"?';
+          if (!confirm(msg)) return;
+          const fallbackWs = workspaces.find(x => x.id !== w.id).id;
+          bookmarks.forEach(b => { if (b.ws === w.id) b.ws = fallbackWs; });
+          workspaces.splice(i, 1);
+          save(WS_KEY, workspaces);
           save(DATA_KEY, bookmarks);
-          if (currentTag === t.id) currentTag = 'all';
-          renderTagsSettings(); renderTabs(); renderGrid();
+          if (settings.activeWs === w.id) {
+            settings.activeWs = fallbackWs;
+            save(SETTINGS_KEY, settings);
+          }
+          renderWsSettings(); renderWsTabs(); renderGrid();
         };
         row.appendChild(name); row.appendChild(del);
         wrap.appendChild(row);
@@ -2870,8 +3208,8 @@
     // ═══════════════════════════════════════════════════════
     //                    EXPORT / IMPORT
     // ═══════════════════════════════════════════════════════
-    document.getElementById('exportBtn').addEventListener('click', () => {
-      const data = { bookmarks, tags, settings, notes, todos };
+    $('exportBtn').addEventListener('click', () => {
+      const data = { bookmarks, workspaces, settings, notes, todos };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -2879,25 +3217,29 @@
       URL.revokeObjectURL(url);
       showToast('exported');
     });
-    document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
-    document.getElementById('importFile').addEventListener('change', (e) => {
+    $('importBtn').addEventListener('click', () => $('importFile').click());
+    $('importFile').addEventListener('change', (e) => {
       const file = e.target.files[0]; if (!file) return;
       const r = new FileReader();
       r.onload = () => {
         try {
           const data = JSON.parse(r.result);
-          if (!confirm('Импортировать? Текущие данные будут заменены.')) return;
+          if (!confirm('Import? Current data will be replaced.')) return;
           if (Array.isArray(data)) {
-            // старый формат — только закладки
             bookmarks = data; save(DATA_KEY, bookmarks);
           } else {
             if (data.bookmarks) { bookmarks = data.bookmarks; save(DATA_KEY, bookmarks); }
-            if (data.tags) { tags = data.tags; save(TAGS_KEY, tags); }
-            if (data.settings) { settings = Object.assign({}, DEFAULT_SETTINGS, data.settings); save(SETTINGS_KEY, settings); }
+            if (data.workspaces) { workspaces = data.workspaces; save(WS_KEY, workspaces); }
+            if (data.settings) {
+              settings = Object.assign({}, DEFAULT_SETTINGS, data.settings);
+              settings.widgets = Object.assign({}, DEFAULT_SETTINGS.widgets, settings.widgets || {});
+              settings.cols = Object.assign({}, DEFAULT_SETTINGS.cols, settings.cols || {});
+              save(SETTINGS_KEY, settings);
+            }
             if (data.notes) { notes = data.notes; save(NOTES_KEY, notes); }
             if (data.todos) { todos = data.todos; save(TODO_KEY, todos); }
           }
-          applyTheme(); renderTabs(); renderGrid(); renderTodos(); applyWidgetVisibility();
+          applyTheme(); renderWsTabs(); renderGrid(); renderTodos(); applyWidgetVisibility(); updateDeadlineBadge();
           showToast('imported');
         } catch { showToast('invalid file'); }
       };
@@ -2908,8 +3250,8 @@
     // ═══════════════════════════════════════════════════════
     //                    IP / WEATHER
     // ═══════════════════════════════════════════════════════
-    const ipbox = document.getElementById('ipbox');
-    const ipValue = document.getElementById('ipValue');
+    const ipbox = $('ipbox');
+    const ipValue = $('ipValue');
     let currentIp = null;
     async function fetchIp() {
       try { const r = await fetch('https://api.ipify.org?format=json'); const j = await r.json(); currentIp = j.ip; ipValue.textContent = currentIp; }
@@ -2926,17 +3268,12 @@
         const j = await r.json();
         const t = Math.round(j.current.temperature_2m);
         const sign = t > 0 ? '+' : '';
-        const wEl = document.getElementById('weather');
-        wEl.querySelector('.weather-temp').textContent = `${sign}${t}°`;
+        const wEl = $('weather');
+        wEl.querySelector('.weather-temp').textContent = sign + t + '°';
         wEl.style.transition = 'opacity 0.5s'; wEl.style.opacity = '1';
       } catch {}
     }
-
-    // ═══════════════════════════════════════════════════════
-    //                    CURRENCY
-    // ═══════════════════════════════════════════════════════
-    async function fetchRates(force = false) {
-      // если кэш свежий (< 6 часов) — не качаем, если не force
+    async function fetchRates(force) {
       const now = Date.now();
       if (!force && currCache.rates && currCache.updated && (now - currCache.updated < 6 * 3600 * 1000)) {
         renderGrid();
@@ -2946,7 +3283,6 @@
         const r = await fetch('https://open.er-api.com/v6/latest/USD');
         const j = await r.json();
         if (j.result !== 'success') throw new Error();
-        // переносим текущие в prev
         if (currCache.rates) currCache.prevRates = currCache.rates;
         currCache.rates = j.rates;
         currCache.updated = now;
@@ -2959,56 +3295,68 @@
     }
 
     // ═══════════════════════════════════════════════════════
-    //                    CLOCK
+    //                    CLOCK (rAF + only-on-change)
     // ═══════════════════════════════════════════════════════
-    const hEl = document.getElementById('h');
-    const mEl = document.getElementById('m');
-    const sEl = document.getElementById('s');
-    const dateEl = document.getElementById('date');
-    const uptimeEl = document.getElementById('uptime');
-    const dateFmt = new Intl.DateTimeFormat('ru-RU', { timeZone:'Europe/Kyiv', weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    const hEl = $('h');
+    const mEl = $('m');
+    const sEl = $('s');
+    const dateEl = $('date');
+    const uptimeEl = $('uptime');
+    const dateFmt = new Intl.DateTimeFormat('en-GB', { timeZone:'Europe/Kyiv', weekday:'long', day:'numeric', month:'long', year:'numeric' });
     const timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone:'Europe/Kyiv', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
     function pad(n) { return String(n).padStart(2, '0'); }
+
+    let lastH = '', lastM = '', lastS = '', lastDate = '', lastUp = '', lastDeadlineCheck = 0;
     function updateClock() {
       const now = new Date();
       const parts = timeFmt.formatToParts(now);
-      hEl.textContent = parts.find(p => p.type === 'hour').value;
-      mEl.textContent = parts.find(p => p.type === 'minute').value;
-      sEl.textContent = parts.find(p => p.type === 'second').value;
-      dateEl.textContent = dateFmt.format(now);
+      const h = parts.find(p => p.type === 'hour').value;
+      const m = parts.find(p => p.type === 'minute').value;
+      const s = parts.find(p => p.type === 'second').value;
+      if (h !== lastH) { hEl.textContent = h; lastH = h; }
+      if (m !== lastM) { mEl.textContent = m; lastM = m; }
+      if (s !== lastS) { sEl.textContent = s; lastS = s; }
+      const d = dateFmt.format(now);
+      if (d !== lastDate) { dateEl.textContent = d; lastDate = d; }
       const upMs = Date.now() - sessionStart;
       const upMin = Math.floor(upMs / 60000);
       const upH = Math.floor(upMin / 60);
-      uptimeEl.textContent = `uptime ${pad(upH)}:${pad(upMin % 60)}`;
+      const up = 'uptime ' + pad(upH) + ':' + pad(upMin % 60);
+      if (up !== lastUp) { uptimeEl.textContent = up; lastUp = up; }
+      // обновление deadline-плашки раз в 30 сек
+      if (now - lastDeadlineCheck > 30000) {
+        updateDeadlineBadge();
+        // также пересортировать тоды если открыта панель (без перерисовки скрытой)
+        if (todoPanel.classList.contains('open')) renderTodos();
+        lastDeadlineCheck = now;
+      }
     }
-    updateClock(); setInterval(updateClock, 1000);
+    // setInterval достаточно для часов; rAF не нужен для текста
+    setInterval(updateClock, 1000);
+    updateClock();
 
     // ═══════════════════════════════════════════════════════
     //                    TOAST
     // ═══════════════════════════════════════════════════════
     let toastTimer;
     function showToast(text) {
-      const t = document.getElementById('toast');
+      const t = $('toast');
       t.textContent = text; t.classList.add('show');
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
     }
 
     // ═══════════════════════════════════════════════════════
-    //                    GLOBAL HOTKEYS
+    //                    HOTKEYS
     // ═══════════════════════════════════════════════════════
     document.addEventListener('keydown', (e) => {
-      // Ctrl+Space — палитра
       if ((e.ctrlKey || e.metaKey) && e.code === 'Space') {
         e.preventDefault();
         if (mainEl.style.display !== 'none') openCmdk();
       }
-      // Ctrl+/ — toggle AI bar
       if ((e.ctrlKey || e.metaKey) && e.key === '/') {
         e.preventDefault();
-        if (mainEl.style.display !== 'none' && settings.widgets.aibar) {
-          aibar.classList.toggle('hidden');
-        }
+        if (mainEl.style.display !== 'none' && settings.widgets.aibar) aibar.classList.toggle('hidden');
       }
       if (e.key === 'Escape') {
         if (modalBackdrop.classList.contains('active')) closeModal();
@@ -3017,6 +3365,7 @@
         else if (passBackdrop.classList.contains('active')) closePassgen();
         else if (phoneBackdrop.classList.contains('active')) closePhone();
         else if (cmdk.classList.contains('active')) closeCmdk();
+        else if (addMenu.classList.contains('active')) closeAddMenu();
         else if (todoPanel.classList.contains('open')) todoPanel.classList.remove('open');
       }
     });
@@ -3028,6 +3377,7 @@
     if (isAuthorized()) unlock();
     else pinInput.focus();
 
+  })();
   </script>
 </body>
 </html>
