@@ -353,8 +353,9 @@
     .grid.view-quickdial {
       display: grid;
       grid-template-columns: repeat(calc(var(--cols, 4) + 1), 1fr);
-      gap: 1.2rem 0.5rem;
+      gap: 1.4rem 0.5rem;
       justify-items: center;
+      padding: 0.5rem 0;
     }
     .grid.view-quickdial .tile {
       padding: 0;
@@ -366,6 +367,9 @@
       flex-direction: column;
       align-items: center;
       gap: 0.5rem;
+      overflow: visible;
+      contain: none;
+      transform: none !important;
     }
     .grid.view-quickdial .tile::before { display: none; }
     .grid.view-quickdial .tile-head {
@@ -374,12 +378,11 @@
       border: 1px solid var(--border-strong);
       border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      transition: border-color 0.2s, transform 0.2s, background 0.2s;
+      transition: border-color 0.2s, background 0.2s;
     }
     .grid.view-quickdial .tile:hover { transform: none; }
     .grid.view-quickdial .tile:hover .tile-head {
       border-color: var(--border-hover);
-      transform: translateY(-2px);
       background: var(--bg-3);
     }
     .grid.view-quickdial .tile-icon { width: 28px; height: 28px; }
@@ -393,6 +396,12 @@
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .grid.view-quickdial .tile-host { display: none; }
+    .grid.view-quickdial .tile-hotkey { display: none; }
+    .grid.view-quickdial .tile-actions {
+      top: 0; right: 50%;
+      bottom: auto;
+      transform: translateX(50%);
+    }
 
     /* terminal: textual list */
     .grid.view-terminal {
@@ -2502,9 +2511,15 @@
     e.preventDefault();
     tile.classList.remove('drag-over');
     const targetB = bookmarks.find(x => x.id === tile.dataset.id);
-    if (targetB && targetB.type === 'folder' && e.shiftKey) {
+    if (targetB && targetB.type === 'folder') {
       const moved = bookmarks.find(x => x.id === dragId);
-      if (moved) { moved.parent = targetB.id; save(DATA_KEY, bookmarks); renderGrid(); showToast('moved into folder'); return; }
+      if (moved && moved.id !== targetB.id && moved.type !== 'folder') {
+        moved.parent = targetB.id;
+        save(DATA_KEY, bookmarks);
+        renderGrid();
+        showToast('moved into ' + targetB.name);
+        return;
+      }
     }
     const fromIdx = bookmarks.findIndex(x => x.id === dragId);
     const toIdx = bookmarks.findIndex(x => x.id === tile.dataset.id);
@@ -3381,7 +3396,10 @@
       todos: todos
     };
   }
-  function applyImportedData(data) {
+  // applyImportedData: applies a backup. preserveSync=true keeps local sync creds
+  // (used by pull, so a backup with stale/empty token doesn't kill syncing).
+  function applyImportedData(data, preserveSync) {
+    const keepSync = preserveSync ? Object.assign({}, settings.sync) : null;
     if (data.bookmarks) { bookmarks = data.bookmarks; save(DATA_KEY, bookmarks); }
     if (data.workspaces) {
       workspaces = data.workspaces;
@@ -3390,6 +3408,7 @@
     }
     if (data.settings) {
       settings = deepMerge(DEFAULT_SETTINGS, data.settings);
+      if (keepSync) settings.sync = keepSync;
       save(SETTINGS_KEY, settings);
     }
     if (data.notes) { notes = data.notes; save(NOTES_KEY, notes); }
@@ -3403,84 +3422,126 @@
     applyWidgetVisibility();
     updateDeadlineBadge();
   }
+  // Read GitHub error body for a human message
+  async function ghError(resp) {
+    let detail = '';
+    try {
+      const j = await resp.json();
+      if (j && j.message) detail = j.message;
+    } catch (e) { /* ignore */ }
+    const map = {
+      401: 'bad credentials — token invalid or expired',
+      403: 'forbidden — token lacks "gist" scope or rate-limited',
+      404: 'not found — gist id wrong or token can\'t see it',
+      422: 'unprocessable — malformed request'
+    };
+    return 'HTTP ' + resp.status + (map[resp.status] ? ' · ' + map[resp.status] : '') + (detail ? ' (' + detail + ')' : '');
+  }
   async function syncPush() {
-    const s = settings.sync;
+    const s = settings.sync || {};
     if (!s.token) { showToast('set GitHub token in settings', 'error'); openSettings('sync'); return; }
     setSyncStatus('syncing', 'pushing…');
+    console.log('[sync] push start. gistId=', s.gistId || '(none, will create)');
     const payload = collectData();
-    const body = {
-      description: 'chessium console backup · ' + new Date().toISOString(),
-      files: {}
-    };
+    const body = { description: 'chessium console backup · ' + new Date().toISOString(), files: {} };
     body.files[GIST_FILENAME] = { content: JSON.stringify(payload, null, 2) };
     try {
       let resp;
       if (s.gistId) {
         resp = await fetch('https://api.github.com/gists/' + s.gistId, {
           method: 'PATCH',
-          headers: { 'Authorization': 'Bearer ' + s.token, 'Accept': 'application/vnd.github+json' },
+          headers: { 'Authorization': 'token ' + s.token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28' },
           body: JSON.stringify(body)
         });
+        // gist deleted on remote? recreate
+        if (resp.status === 404) {
+          console.warn('[sync] gist 404 on PATCH — recreating');
+          settings.sync.gistId = '';
+          body.public = false;
+          resp = await fetch('https://api.github.com/gists', {
+            method: 'POST',
+            headers: { 'Authorization': 'token ' + s.token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28' },
+            body: JSON.stringify(body)
+          });
+        }
       } else {
         body.public = false;
         resp = await fetch('https://api.github.com/gists', {
           method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + s.token, 'Accept': 'application/vnd.github+json' },
+          headers: { 'Authorization': 'token ' + s.token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28' },
           body: JSON.stringify(body)
         });
       }
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      console.log('[sync] push response status', resp.status);
+      if (!resp.ok) {
+        const msg = await ghError(resp);
+        throw new Error(msg);
+      }
       const j = await resp.json();
       settings.sync.gistId = j.id;
       settings.sync.lastSync = payload._meta.savedAt;
       save(SETTINGS_KEY, settings);
+      console.log('[sync] push ok. gistId=', j.id);
       setSyncStatus('ok', 'pushed');
       showToast('pushed to gist', 'success');
+      return true;
     } catch (e) {
+      console.error('[sync] push failed:', e);
       setSyncStatus('error', 'push failed');
       showToast('push failed: ' + e.message, 'error');
+      return false;
     }
   }
   async function syncPull() {
-    const s = settings.sync;
-    if (!s.token || !s.gistId) { showToast('configure sync first', 'error'); openSettings('sync'); return; }
+    const s = settings.sync || {};
+    if (!s.token) { showToast('set GitHub token in settings', 'error'); openSettings('sync'); return; }
+    if (!s.gistId) { showToast('no gist id — push once first', 'error'); openSettings('sync'); return; }
     setSyncStatus('syncing', 'pulling…');
+    console.log('[sync] pull start. gistId=', s.gistId);
     try {
       const resp = await fetch('https://api.github.com/gists/' + s.gistId, {
-        headers: { 'Authorization': 'Bearer ' + s.token, 'Accept': 'application/vnd.github+json' }
+        headers: { 'Authorization': 'token ' + s.token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }
       });
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      console.log('[sync] pull response status', resp.status);
+      if (!resp.ok) {
+        const msg = await ghError(resp);
+        throw new Error(msg);
+      }
       const j = await resp.json();
-      const file = j.files[GIST_FILENAME];
-      if (!file) throw new Error('backup file not found in gist');
+      const file = j.files && j.files[GIST_FILENAME];
+      if (!file) throw new Error('file "' + GIST_FILENAME + '" not found in gist');
       let content = file.content;
       if (file.truncated && file.raw_url) {
+        console.log('[sync] file truncated, fetching raw');
         const raw = await fetch(file.raw_url);
         content = await raw.text();
       }
       const data = JSON.parse(content);
       const remoteAt = data._meta && data._meta.savedAt ? data._meta.savedAt : 0;
       const localAt = s.lastSync || 0;
-      // conflict check
       if (remoteAt && localAt && remoteAt < localAt) {
         if (!confirm('Remote backup is OLDER than your local data.\nRemote: ' + new Date(remoteAt).toLocaleString() + '\nLocal:  ' + new Date(localAt).toLocaleString() + '\n\nPull anyway and overwrite local?')) {
           setSyncStatus('', '');
-          return;
+          return false;
         }
       } else if (remoteAt) {
         if (!confirm('Pull from gist? This will REPLACE current local data.\nRemote saved: ' + new Date(remoteAt).toLocaleString())) {
           setSyncStatus('', '');
-          return;
+          return false;
         }
       }
-      applyImportedData(data);
+      applyImportedData(data, true); // preserve local sync creds
       settings.sync.lastSync = Date.now();
       save(SETTINGS_KEY, settings);
+      console.log('[sync] pull ok');
       setSyncStatus('ok', 'pulled');
       showToast('pulled from gist', 'success');
+      return true;
     } catch (e) {
+      console.error('[sync] pull failed:', e);
       setSyncStatus('error', 'pull failed');
       showToast('pull failed: ' + e.message, 'error');
+      return false;
     }
   }
   $('syncBtn').addEventListener('click', syncPush);
@@ -3851,30 +3912,32 @@
     if (newWsInput) newWsInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addWsBtn.click(); });
 
     // sync
+    function readSyncFields() {
+      if (!settings.sync) settings.sync = { gistId: '', token: '', lastSync: 0, autoPull: false };
+      const tokEl = $('syncToken'), idEl = $('syncGistId');
+      if (tokEl) settings.sync.token = tokEl.value.trim();
+      if (idEl) settings.sync.gistId = idEl.value.trim();
+      save(SETTINGS_KEY, settings);
+    }
     const syncSave = $('syncSaveBtn');
     if (syncSave) syncSave.addEventListener('click', () => {
-      settings.sync.token = $('syncToken').value.trim();
-      settings.sync.gistId = $('syncGistId').value.trim();
-      save(SETTINGS_KEY, settings);
+      readSyncFields();
       updateSyncUi();
       showToast('sync settings saved');
     });
     const sp = $('syncPushBtn');
     if (sp) sp.addEventListener('click', () => {
-      settings.sync.token = $('syncToken').value.trim();
-      settings.sync.gistId = $('syncGistId').value.trim();
-      save(SETTINGS_KEY, settings);
-      syncPush().then(() => buildSettingsUI());
+      readSyncFields();
+      syncPush().then(ok => { if (ok) buildSettingsUI(); });
     });
     const spl = $('syncPullBtn');
     if (spl) spl.addEventListener('click', () => {
-      settings.sync.token = $('syncToken').value.trim();
-      settings.sync.gistId = $('syncGistId').value.trim();
-      save(SETTINGS_KEY, settings);
-      syncPull().then(() => buildSettingsUI());
+      readSyncFields();
+      syncPull().then(ok => { if (ok) buildSettingsUI(); });
     });
     const apT = settingsBody.querySelector('[data-autopull]');
     if (apT) apT.addEventListener('click', () => {
+      if (!settings.sync) settings.sync = { gistId: '', token: '', lastSync: 0, autoPull: false };
       settings.sync.autoPull = !settings.sync.autoPull;
       apT.classList.toggle('on', settings.sync.autoPull);
       save(SETTINGS_KEY, settings);
@@ -4011,7 +4074,7 @@
         const data = JSON.parse(r.result);
         if (!confirm('Import? Current data will be replaced.')) return;
         if (Array.isArray(data)) { bookmarks = data; save(DATA_KEY, bookmarks); renderWsTabs(); renderGrid(); }
-        else applyImportedData(data);
+        else applyImportedData(data, true);
         showToast('imported', 'success');
       } catch { showToast('invalid file', 'error'); }
     };
