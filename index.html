@@ -484,12 +484,14 @@
     }
     .tile::before {
       content: '';
-      position: absolute; left: 0; top: 0; bottom: 0;
-      width: 2px;
+      position: absolute; left: 0; top: 1px; bottom: 1px;
+      width: 3px;
       background: var(--tile-color, var(--accent));
+      border-radius: 8px 0 0 8px;
       transform: scaleY(0);
       transform-origin: bottom;
       transition: transform 0.25s ease;
+      pointer-events: none;
     }
     .tile:hover {
       border-color: var(--tile-color, var(--border-hover));
@@ -499,7 +501,7 @@
     .tile:hover::before { transform: scaleY(1); transform-origin: top; }
     .tile.dragging { opacity: 0.4; }
     .tile.drag-over { border-color: var(--accent-bright); }
-    .tile.has-color { border-left: 3px solid var(--tile-color); }
+    .tile.has-color::before { background: var(--tile-color); }
 
     .tile-head {
       display: flex; justify-content: space-between; align-items: flex-start;
@@ -2095,6 +2097,61 @@
     try { localStorage.setItem(key, JSON.stringify(val)); }
     catch (e) { showToast('storage full or quota exceeded', 'error'); }
   }
+
+  // ═══════════ INDEXEDDB BLOB STORE ═══════════
+  // Large binary-ish values (background image, future tile images) live here
+  // instead of localStorage, which caps at ~5 MB.
+  const IDB_NAME = 'chessium_store';
+  const IDB_STORE = 'blobs';
+  let idbPromise = null;
+  function idbOpen() {
+    if (idbPromise) return idbPromise;
+    idbPromise = new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error('no indexeddb')); return; }
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return idbPromise;
+  }
+  async function idbGet(key) {
+    try {
+      const db = await idbOpen();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, 'readonly');
+        const req = tx.objectStore(IDB_STORE).get(key);
+        req.onsuccess = () => resolve(req.result === undefined ? null : req.result);
+        req.onerror = () => reject(req.error);
+      });
+    } catch { return null; }
+  }
+  async function idbSet(key, value) {
+    try {
+      const db = await idbOpen();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).put(value, key);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch { return false; }
+  }
+  async function idbDel(key) {
+    try {
+      const db = await idbOpen();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).delete(key);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch { return false; }
+  }
+
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
@@ -2119,6 +2176,7 @@
   let todos = load(TODO_KEY, []);
   let currCache = load(CURR_CACHE_KEY, { rates: null, prevRates: null, updated: null });
   let bgData = load(BG_KEY, null);
+  let bgImage = null; // data-URL of the background image, loaded async from IndexedDB
 
   workspaces.forEach(w => {
     if (typeof w.cols !== 'number') w.cols = 4;
@@ -2190,13 +2248,33 @@
   function applyBg() {
     const layer = $('bgLayer');
     const dim = $('bgLayerDim');
-    if (bgData && bgData.image) {
-      layer.style.backgroundImage = 'url(' + bgData.image + ')';
-      layer.style.filter = 'blur(' + (bgData.blur || 0) + 'px)';
-      dim.style.background = 'rgba(0,0,0,' + (bgData.dim || 0) + ')';
+    if (bgImage) {
+      layer.style.backgroundImage = 'url(' + bgImage + ')';
+      layer.style.filter = 'blur(' + ((bgData && bgData.blur) || 0) + 'px)';
+      dim.style.background = 'rgba(0,0,0,' + ((bgData && bgData.dim) || 0) + ')';
     } else {
       layer.style.backgroundImage = 'none';
       dim.style.background = 'transparent';
+    }
+  }
+  // Load the background image from IndexedDB; migrate legacy localStorage image once.
+  async function loadBgImage() {
+    // legacy path: image still embedded in the localStorage BG_KEY blob
+    if (bgData && bgData.image) {
+      const legacy = bgData.image;
+      bgImage = legacy;
+      const migrated = await idbSet('bg_image', legacy);
+      if (migrated) {
+        bgData = { blur: bgData.blur || 0, dim: bgData.dim || 0 };
+        save(BG_KEY, bgData);
+      }
+      applyBg();
+      return;
+    }
+    // normal path: image lives in IndexedDB
+    if (bgData) {
+      bgImage = await idbGet('bg_image');
+      applyBg();
     }
   }
   function applyWidgetVisibility() {
@@ -3769,11 +3847,15 @@
     const file = e.target.files[0];
     if (!file) return;
     processBgImage(file, (dataUrl) => {
-      bgData = { image: dataUrl, blur: 4, dim: 0.4 };
-      save(BG_KEY, bgData);
-      applyBg();
-      buildSettingsUI();
-      showToast('background set · adjust blur/dim in settings');
+      bgImage = dataUrl;
+      bgData = { blur: 4, dim: 0.4 };
+      idbSet('bg_image', dataUrl).then((ok) => {
+        if (!ok) { showToast('could not store image', 'error'); return; }
+        save(BG_KEY, bgData);
+        applyBg();
+        buildSettingsUI();
+        showToast('background set · adjust blur/dim in settings');
+      });
     });
     e.target.value = '';
   });
@@ -3860,8 +3942,8 @@
 
     // Background
     h += '<div class="settings-section" data-section="background"><h3>Background image</h3>';
-    if (bgData && bgData.image) {
-      h += '<div class="bg-preview" id="bgPreview" style="background-image:url(' + bgData.image + ')"><div class="bg-preview-dim" id="bgPreviewDim"></div></div>';
+    if (bgData && bgImage) {
+      h += '<div class="bg-preview" id="bgPreview" style="background-image:url(' + bgImage + ')"><div class="bg-preview-dim" id="bgPreviewDim"></div></div>';
       h += '<div class="slider-row"><label>blur</label><input type="range" id="bgBlur" min="0" max="20" step="1" value="' + (bgData.blur || 0) + '"><span class="val" id="bgBlurVal">' + (bgData.blur || 0) + 'px</span></div>';
       h += '<div class="slider-row"><label>dim</label><input type="range" id="bgDim" min="0" max="90" step="5" value="' + Math.round((bgData.dim || 0) * 100) + '"><span class="val" id="bgDimVal">' + Math.round((bgData.dim || 0) * 100) + '%</span></div>';
       h += '<div style="display:flex;gap:0.5rem;margin-top:0.6rem;"><button class="btn btn-small" id="bgChange">change image</button><button class="btn btn-small btn-danger" id="bgRemove">remove</button></div>';
@@ -3998,7 +4080,9 @@
     const bgRemove = $('bgRemove');
     if (bgRemove) bgRemove.addEventListener('click', () => {
       bgData = null;
+      bgImage = null;
       localStorage.removeItem(BG_KEY);
+      idbDel('bg_image');
       applyBg();
       buildSettingsUI();
       showToast('background removed');
@@ -4308,6 +4392,7 @@
   buildColorPalette();
   applyTheme();
   applyBg();
+  loadBgImage();
   renderWsTabs();
   renderGrid();
   renderTodos();
