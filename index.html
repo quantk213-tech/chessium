@@ -294,6 +294,7 @@
       transition: color 0.15s;
     }
     .breadcrumb:hover { color: var(--fg); }
+    .breadcrumb.drag-over { color: var(--accent-bright); border-color: var(--accent-bright); }
     .breadcrumb svg { width: 12px; height: 12px; }
 
     /* ─── GRID WRAPPER ─── */
@@ -514,6 +515,13 @@
       flex-shrink: 0;
     }
     .tile:hover .tile-icon { color: var(--tile-color, var(--accent-bright)); }
+    .tile-favicon {
+      width: 20px; height: 20px;
+      border-radius: 4px;
+      object-fit: contain;
+    }
+    .tile-favicon.favicon-failed { visibility: hidden; }
+    .grid.view-quickdial .tile-favicon { width: 26px; height: 26px; }
     .tile-label {
       font-size: 0.6rem; letter-spacing: 0.35em;
       color: var(--fg-dim); text-transform: uppercase;
@@ -777,6 +785,21 @@
     .color-dot.color-none {
       background: transparent;
       border: 1px dashed var(--fg-dim);
+    }
+    .color-dot.color-custom {
+      display: flex; align-items: center; justify-content: center;
+      color: var(--fg-dim);
+      border: 1px dashed var(--fg-dim);
+      overflow: hidden;
+      position: relative;
+    }
+    .color-dot.color-custom svg { width: 14px; height: 14px; }
+    .color-dot.color-custom.selected svg { display: none; }
+    .color-dot.color-custom input[type="color"] {
+      position: absolute; inset: 0;
+      opacity: 0; cursor: pointer;
+      width: 100%; height: 100%;
+      padding: 0; border: none;
     }
 
     .modal-actions {
@@ -2038,6 +2061,24 @@
     const p = ICONS[name] || ICONS.link;
     return '<svg class="' + (cls === undefined ? 'tile-icon' : cls) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>';
   }
+  // Favicon URL for a site, via Google's favicon service.
+  function faviconUrl(siteUrl) {
+    let host = '';
+    try { host = new URL(siteUrl).hostname; } catch { return ''; }
+    if (!host) return '';
+    return 'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(host);
+  }
+  // Renders the icon for a bookmark — SVG, or an <img> favicon when icon === 'favicon'.
+  function tileIconHtml(b, isFolder, cls) {
+    const klass = cls === undefined ? 'tile-icon' : cls;
+    if (b && b.icon === 'favicon' && b.url) {
+      const fav = faviconUrl(b.url);
+      if (fav) {
+        return '<img class="' + klass + ' tile-favicon" src="' + escapeHtml(fav) + '" alt="">';
+      }
+    }
+    return iconSvg((b && b.icon) || (isFolder ? 'folder' : 'link'), klass);
+  }
 
   // ═══════════ THEMES (12) ═══════════
   const THEMES = {
@@ -2367,6 +2408,27 @@
       back.className = 'breadcrumb';
       back.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>back &middot; ' + escapeHtml(folder ? folder.name : 'folder');
       back.addEventListener('click', () => { currentFolder = null; renderWsTabs(); renderGrid(); });
+      back.addEventListener('dragover', (e) => {
+        if (!dragId) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        back.classList.add('drag-over');
+      });
+      back.addEventListener('dragleave', () => back.classList.remove('drag-over'));
+      back.addEventListener('drop', (e) => {
+        back.classList.remove('drag-over');
+        if (!dragId) return;
+        e.preventDefault();
+        const moved = bookmarks.find(x => x.id === dragId);
+        if (moved && moved.parent) {
+          const folderObj = bookmarks.find(b => b.id === moved.parent);
+          moved.parent = null;
+          if (folderObj) moved.ws = folderObj.ws;
+          save(DATA_KEY, bookmarks);
+          renderGrid();
+          showToast('moved out of folder');
+        }
+      });
       wsTabs.appendChild(back);
       return;
     }
@@ -2436,16 +2498,18 @@
     tab.classList.remove('drag-over');
     const targetWs = tab.dataset.wsId;
     // case 1: a tile dropped onto a workspace tab → move tile to that workspace
+    // (also pulls a tile OUT of a folder, even onto the same workspace's tab)
     if (dragId && targetWs) {
       const moved = bookmarks.find(x => x.id === dragId);
-      if (moved && moved.ws !== targetWs) {
+      if (moved && (moved.ws !== targetWs || moved.parent)) {
+        const wasInFolder = !!moved.parent;
         moved.ws = targetWs;
         moved.parent = null;
         save(DATA_KEY, bookmarks);
         renderWsTabs();
         renderGrid();
         const wsName = (workspaces.find(w => w.id === targetWs) || {}).name || targetWs;
-        showToast('moved to ' + wsName);
+        showToast(wasInFolder ? 'moved out to ' + wsName : 'moved to ' + wsName);
       }
       return;
     }
@@ -2472,7 +2536,17 @@
     items.slice(0, 9).forEach((b, i) => { map[b.id] = i + 1; });
     return map;
   }
+  let _renderQueued = false;
   function renderGrid() {
+    // coalesce bursts of renderGrid() calls in the same frame into one paint
+    if (_renderQueued) return;
+    _renderQueued = true;
+    requestAnimationFrame(() => {
+      _renderQueued = false;
+      renderGridNow();
+    });
+  }
+  function renderGridNow() {
     const ws = activeWs();
     const viewMode = ws.viewMode || 'grid';
     grid.className = 'grid view-' + viewMode;
@@ -2526,12 +2600,22 @@
     const hotkeyHtml = hotkey ? '<div class="tile-hotkey">' + hotkey + '</div>' : '';
     tile.innerHTML =
       '<div class="tile-head">' +
-        iconSvg(b.icon || (isFolder ? 'folder' : 'link')) +
+        tileIconHtml(b, isFolder) +
         '<div class="tile-label">' + escapeHtml(b.label || '') + '</div>' +
       '</div>' +
       '<div class="tile-name">' + escapeHtml(b.name || 'Unnamed') + '</div>' +
       '<div class="tile-host">' + escapeHtml(host) + '</div>' +
       hotkeyHtml;
+    // if a favicon fails to load, fall back to the default link/folder glyph
+    const favImg = tile.querySelector('.tile-favicon');
+    if (favImg) {
+      favImg.addEventListener('error', () => {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = iconSvg(isFolder ? 'folder' : 'link');
+        const svg = tmp.firstChild;
+        if (svg) favImg.replaceWith(svg);
+      });
+    }
     return tile;
   }
   function makeCurrencyTile(pair) {
@@ -2837,6 +2921,13 @@
 
   function buildIconGrid() {
     const frag = document.createDocumentFragment();
+    // favicon option — pulls the icon from the bookmark's site
+    const favOpt = document.createElement('button');
+    favOpt.className = 'icon-opt icon-opt-favicon';
+    favOpt.dataset.icon = 'favicon';
+    favOpt.title = 'site favicon';
+    favOpt.innerHTML = FAVICON_GLOBE;
+    frag.appendChild(favOpt);
     Object.keys(ICONS).forEach(name => {
       const opt = document.createElement('button');
       opt.className = 'icon-opt';
@@ -2848,6 +2939,25 @@
     iconGrid.innerHTML = '';
     iconGrid.appendChild(frag);
   }
+  // Generic globe glyph used as the favicon-option fallback.
+  const FAVICON_GLOBE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>';
+  // Show a live favicon preview inside the favicon option, based on the current URL field.
+  function refreshFaviconOption() {
+    const favOpt = iconGrid.querySelector('.icon-opt-favicon');
+    if (!favOpt) return;
+    const fav = faviconUrl(fUrl ? fUrl.value.trim() : '');
+    if (fav) {
+      const img = document.createElement('img');
+      img.alt = '';
+      img.style.cssText = 'width:16px;height:16px;border-radius:3px;';
+      img.addEventListener('error', () => { favOpt.innerHTML = FAVICON_GLOBE; });
+      img.src = fav;
+      favOpt.innerHTML = '';
+      favOpt.appendChild(img);
+    } else {
+      favOpt.innerHTML = FAVICON_GLOBE;
+    }
+  }
   function buildColorPalette() {
     const frag = document.createDocumentFragment();
     TILE_COLORS.forEach(c => {
@@ -2857,6 +2967,13 @@
       dot.dataset.color = c || '';
       frag.appendChild(dot);
     });
+    // native custom-color picker
+    const custom = document.createElement('label');
+    custom.className = 'color-dot color-custom';
+    custom.title = 'custom color';
+    custom.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2a10 10 0 100 20c1.38 0 2-1.12 2-2.5 0-.78-.3-1.4-.8-1.9s-.7-1.1-.7-1.6c0-1.1.9-2 2-2h2.3a5.5 5.5 0 005.4-5.5C24.4 5 18.9 2 12 2z"/></svg>' +
+      '<input type="color" id="customColorInput">';
+    frag.appendChild(custom);
     colorPalette.innerHTML = '';
     colorPalette.appendChild(frag);
   }
@@ -2868,9 +2985,16 @@
   });
   colorPalette.addEventListener('click', (e) => {
     const dot = e.target.closest('.color-dot');
-    if (!dot) return;
+    if (!dot || dot.classList.contains('color-custom')) return;
     selectedColor = dot.dataset.color || null;
     colorPalette.querySelectorAll('.color-dot').forEach(el => el.classList.toggle('selected', el === dot));
+  });
+  colorPalette.addEventListener('input', (e) => {
+    if (e.target.id !== 'customColorInput') return;
+    selectedColor = e.target.value;
+    const custom = colorPalette.querySelector('.color-custom');
+    custom.style.background = selectedColor;
+    colorPalette.querySelectorAll('.color-dot').forEach(el => el.classList.toggle('selected', el === custom));
   });
   function setSelectedIcon(name) {
     selectedIcon = name;
@@ -2878,17 +3002,41 @@
   }
   function setSelectedColor(c) {
     selectedColor = c || null;
-    colorPalette.querySelectorAll('.color-dot').forEach(el => el.classList.toggle('selected', (el.dataset.color || null) === (c || null)));
+    const custom = colorPalette.querySelector('.color-custom');
+    const isPreset = TILE_COLORS.indexOf(c || null) !== -1;
+    colorPalette.querySelectorAll('.color-dot').forEach(el => {
+      if (el === custom) return;
+      el.classList.toggle('selected', (el.dataset.color || null) === (c || null));
+    });
+    if (custom) {
+      if (c && !isPreset) {
+        custom.style.background = c;
+        custom.classList.add('selected');
+        const inp = custom.querySelector('input');
+        if (inp) inp.value = c;
+      } else {
+        custom.style.background = '';
+        custom.classList.remove('selected');
+      }
+    }
   }
   function setFormType(type) {
     editingType = type;
     typeSelector.querySelectorAll('.type-opt').forEach(b => b.classList.toggle('active', b.dataset.type === type));
     urlField.style.display = type === 'folder' ? 'none' : 'block';
+    // favicon icon only applies to bookmarks (folders have no URL)
+    const favOpt = iconGrid.querySelector('.icon-opt-favicon');
+    if (favOpt) {
+      favOpt.style.display = type === 'folder' ? 'none' : '';
+      if (type === 'folder' && selectedIcon === 'favicon') setSelectedIcon('folder');
+    }
+    refreshFaviconOption();
   }
   typeSelector.addEventListener('click', (e) => {
     const opt = e.target.closest('.type-opt');
     if (opt) setFormType(opt.dataset.type);
   });
+  if (fUrl) fUrl.addEventListener('input', () => refreshFaviconOption());
   function rebuildWsSelect() {
     fWs.innerHTML = '';
     workspaces.forEach(w => fWs.appendChild(new Option(w.name, w.id)));
