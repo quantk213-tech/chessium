@@ -467,6 +467,116 @@
     }
     .grid.view-terminal .tile:hover .tile-actions { opacity: 1; }
 
+    /* ─── BOARD VIEW ─── */
+    .grid.view-board {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      grid-auto-rows: 64px;
+      grid-template-rows: repeat(var(--board-rows, 1), 64px);
+      gap: 0.5rem;
+      align-content: start;
+    }
+    .grid.view-board .board-tile {
+      grid-column: calc(var(--bx) + 1) / span var(--bw);
+      grid-row: calc(var(--by) + 1) / span var(--bh);
+      min-height: 0;
+      touch-action: none;
+    }
+    .board-resize {
+      position: absolute;
+      right: 2px; bottom: 2px;
+      width: 16px; height: 16px;
+      cursor: nwse-resize;
+      opacity: 0;
+      transition: opacity 0.12s;
+      z-index: 3;
+    }
+    .board-resize::after {
+      content: '';
+      position: absolute; right: 3px; bottom: 3px;
+      width: 7px; height: 7px;
+      border-right: 2px solid var(--fg-dim);
+      border-bottom: 2px solid var(--fg-dim);
+    }
+    .board-tile:hover .board-resize { opacity: 1; }
+    .board-tile.board-moving { cursor: grabbing; z-index: 10; opacity: 0.85; }
+    .board-tile.board-resizing { z-index: 10; outline: 1px dashed var(--accent-bright); }
+    .grid.view-board .board-tile { cursor: grab; }
+    /* on narrow screens the board collapses to a single readable column */
+    @media (max-width: 720px) {
+      .grid.view-board {
+        grid-template-columns: 1fr;
+        grid-auto-rows: minmax(64px, auto);
+        grid-template-rows: none;
+      }
+      .grid.view-board .board-tile {
+        grid-column: 1 / -1 !important;
+        grid-row: auto !important;
+        min-height: calc(var(--bh) * 56px);
+        cursor: default;
+      }
+      .board-resize { display: none; }
+    }
+
+    /* ─── CONTENT TILES (note/checklist/header/snippet) ─── */
+    .tile-note, .tile-checklist, .tile-snippet {
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .ct-title {
+      font-family: var(--mono); font-size: 0.7rem;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--tile-color, var(--accent-bright));
+      margin-bottom: 0.5rem;
+      display: flex; justify-content: space-between; align-items: baseline;
+      flex-shrink: 0;
+    }
+    .ct-check-count { color: var(--fg-dim); font-size: 0.65rem; }
+    .ct-note-body {
+      font-size: 0.82rem; line-height: 1.5;
+      color: var(--fg); opacity: 0.92;
+      overflow-y: auto; flex: 1;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .tile-header {
+      display: flex; align-items: center;
+      background: transparent;
+      border: none; border-bottom: 1px solid var(--border-strong);
+      border-radius: 0;
+      padding: 0.3rem 0.2rem;
+    }
+    .tile-header:hover { background: transparent; transform: none; border-color: var(--tile-color, var(--accent)); }
+    .ct-header-text {
+      font-family: var(--display); font-size: 1.1rem;
+      letter-spacing: 0.04em;
+      color: var(--tile-color, var(--fg));
+    }
+    .ct-snippet-head {
+      display: flex; align-items: center; gap: 0.4rem;
+      font-family: var(--mono); font-size: 0.7rem;
+      color: var(--tile-color, var(--accent-bright));
+      margin-bottom: 0.4rem; flex-shrink: 0;
+    }
+    .ct-snippet-head svg { width: 13px; height: 13px; flex-shrink: 0; }
+    .ct-snippet-text {
+      font-family: var(--mono); font-size: 0.78rem;
+      color: var(--fg); opacity: 0.9;
+      overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 4px; padding: 0.35rem 0.5rem;
+    }
+    .tile-snippet { cursor: copy; }
+    .ct-check-list { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 0.15rem; }
+    .ct-check-row {
+      display: flex; align-items: flex-start; gap: 0.45rem;
+      font-size: 0.8rem; color: var(--fg);
+      cursor: pointer; padding: 0.1rem 0;
+    }
+    .ct-check-row input { margin: 0.15rem 0 0 0; accent-color: var(--accent-bright); cursor: pointer; }
+    .ct-check-row.done span { text-decoration: line-through; color: var(--fg-dim); }
+    .ct-empty { font-size: 0.72rem; color: var(--fg-dim); font-style: italic; }
+
     /* ─── TILE BASE ─── */
     .tile {
       position: relative;
@@ -737,6 +847,17 @@
       outline: none; border-color: var(--accent);
     }
     .field textarea { resize: vertical; min-height: 120px; }
+    .cl-editor { display: flex; flex-direction: column; gap: 0.4rem; }
+    .cl-row { display: flex; gap: 0.4rem; align-items: center; }
+    .cl-row input { flex: 1; }
+    .cl-del {
+      width: 30px; height: 30px; flex-shrink: 0;
+      background: transparent; border: 1px solid var(--border-strong);
+      color: var(--fg-dim); border-radius: 6px; cursor: pointer;
+      font-size: 1rem; line-height: 1;
+      transition: color 0.12s, border-color 0.12s;
+    }
+    .cl-del:hover { color: var(--danger); border-color: var(--danger); }
 
     .icon-grid {
       display: grid; grid-template-columns: repeat(10, 1fr);
@@ -1936,6 +2057,19 @@
   <!-- CONTEXT MENU -->
   <div class="ctx-menu" id="ctxMenu"></div>
 
+  <!-- CONTENT TILE MODAL (note/checklist/header/snippet) — body filled in JS -->
+  <div class="modal-backdrop" id="contentBackdrop">
+    <div class="modal">
+      <h2 id="contentTitle">New note</h2>
+      <div id="contentBody"></div>
+      <div class="modal-actions">
+        <button class="btn btn-danger" id="contentDelete" style="display:none;">delete</button>
+        <button class="btn" id="contentCancel">cancel</button>
+        <button class="btn btn-primary" id="contentSave">save</button>
+      </div>
+    </div>
+  </div>
+
   <!-- COMMAND PALETTE -->
   <div class="cmdk" id="cmdk">
     <div class="cmdk-box">
@@ -2101,7 +2235,8 @@
     { id: 'compact', name: 'Compact' },
     { id: 'list', name: 'List' },
     { id: 'quickdial', name: 'Quick dial' },
-    { id: 'terminal', name: 'Terminal' }
+    { id: 'terminal', name: 'Terminal' },
+    { id: 'board', name: 'Board' }
   ];
 
   // ═══════════ DEFAULTS ═══════════
@@ -2115,7 +2250,7 @@
     quickLaunch: true
   };
   const DEFAULT_WORKSPACES = [{ id: 'base', name: 'BASE', viewMode: 'grid', cols: 4 }];
-  const DEFAULT_BOOKMARKS = [{ id: 't-notes', label: 'tool', name: 'Notes', tool: 'notes', icon: 'file', ws: 'base', parent: null }];
+  const DEFAULT_BOOKMARKS = [{ id: 't-notes', kind: 'tool', label: 'tool', name: 'Notes', tool: 'notes', icon: 'file', ws: 'base', parent: null }];
   const TOOLS = [
     { id: 'notes', name: 'Notes', icon: 'file' },
     { id: 'passgen', name: 'Password generator', icon: 'key' },
@@ -2225,6 +2360,61 @@
   });
   if (workspaces.length === 0) workspaces = [{ id: 'base', name: 'BASE', viewMode: 'grid', cols: 4 }];
   if (!workspaces.find(w => w.id === settings.activeWs)) settings.activeWs = workspaces[0].id;
+
+  // ═══════════ TILE DATA MODEL ═══════════
+  // Every tile has an explicit `kind`. Legacy tiles are migrated on load.
+  //   link      — opens b.url
+  //   folder    — contains child tiles (b.type === 'folder')
+  //   tool      — built-in tool (b.tool set)
+  //   note      — free text (b.text)
+  //   checklist — list of {text, done} items (b.items)
+  //   header    — large divider label
+  //   snippet   — click-to-copy text (b.text)
+  // Board placement lives in b.board = { x, y, w, h } in grid units, used
+  // only by the 'board' view mode; other views ignore it.
+  const TILE_KINDS = ['link', 'folder', 'tool', 'note', 'checklist', 'header', 'snippet'];
+  const BOARD_COLS = 12; // logical board width in grid units
+  function tileKind(b) {
+    if (b.kind && TILE_KINDS.indexOf(b.kind) !== -1) return b.kind;
+    if (b.type === 'folder') return 'folder';
+    if (b.tool) return 'tool';
+    return 'link';
+  }
+  function defaultBoardSize(kind) {
+    if (kind === 'note') return { w: 3, h: 2 };
+    if (kind === 'checklist') return { w: 3, h: 3 };
+    if (kind === 'header') return { w: 6, h: 1 };
+    if (kind === 'snippet') return { w: 3, h: 1 };
+    return { w: 2, h: 2 }; // link, folder, tool
+  }
+  // Assign non-overlapping board coords to any tiles in a workspace that lack them.
+  function ensureBoardCoords(wsId) {
+    const tiles = bookmarks.filter(b => !b.parent && b.ws === wsId);
+    const placed = tiles.filter(b => b.board && typeof b.board.x === 'number');
+    const occupied = placed.map(b => b.board);
+    let cursorX = 0, cursorY = 0, rowH = 0;
+    tiles.forEach(b => {
+      if (b.board && typeof b.board.x === 'number') return;
+      const k = tileKind(b);
+      const size = defaultBoardSize(k);
+      if (cursorX + size.w > BOARD_COLS) { cursorX = 0; cursorY += rowH || 2; rowH = 0; }
+      b.board = { x: cursorX, y: cursorY, w: size.w, h: size.h };
+      occupied.push(b.board);
+      cursorX += size.w;
+      rowH = Math.max(rowH, size.h);
+    });
+  }
+  // One-time migration: stamp `kind` onto every legacy tile.
+  (function migrateTileModel() {
+    let changed = false;
+    bookmarks.forEach(b => {
+      if (!b.kind || TILE_KINDS.indexOf(b.kind) === -1) {
+        b.kind = tileKind(b);
+        changed = true;
+      }
+    });
+    if (changed) save(DATA_KEY, bookmarks);
+  })();
 
   let currentFolder = null;
   let editingId = null;
@@ -2553,6 +2743,13 @@
     grid.style.setProperty('--cols', ws.cols || 4);
 
     const items = getVisibleBookmarks();
+
+    if (viewMode === 'board' && !currentFolder) {
+      renderBoard(ws, items);
+      return;
+    }
+    grid.style.removeProperty('--board-rows');
+
     const qlMap = getQuickLaunchMap();
     const frag = document.createDocumentFragment();
     items.forEach(b => frag.appendChild(makeTile(b, qlMap[b.id])));
@@ -2576,7 +2773,51 @@
       fab.classList.remove('show');
     }
   }
+  // Board view — tiles positioned by their b.board {x,y,w,h} coordinates.
+  function renderBoard(ws, items) {
+    ensureBoardCoords(ws.id);
+    grid.innerHTML = '';
+    if (items.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'grid-empty';
+      empty.innerHTML = 'this board is empty<div class="hint">right-click to add a tile</div>';
+      grid.appendChild(empty);
+      fab.classList.add('show');
+      grid.style.removeProperty('--board-rows');
+      return;
+    }
+    fab.classList.remove('show');
+    let maxRow = 0;
+    const frag = document.createDocumentFragment();
+    // sort by board position so the mobile single-column flow reads top→bottom, left→right
+    const ordered = items.slice().sort((a, b) => {
+      const A = a.board || { x: 0, y: 0 }, B = b.board || { x: 0, y: 0 };
+      return (A.y - B.y) || (A.x - B.x);
+    });
+    ordered.forEach(b => {
+      const tile = makeTile(b, null);
+      const bd = b.board || { x: 0, y: 0, w: 2, h: 2 };
+      tile.classList.add('board-tile');
+      tile.draggable = false; // board uses pointer-drag, not HTML5 DnD
+      tile.style.setProperty('--bx', bd.x);
+      tile.style.setProperty('--by', bd.y);
+      tile.style.setProperty('--bw', bd.w);
+      tile.style.setProperty('--bh', bd.h);
+      const handle = document.createElement('div');
+      handle.className = 'board-resize';
+      handle.title = 'resize';
+      tile.appendChild(handle);
+      maxRow = Math.max(maxRow, bd.y + bd.h);
+      frag.appendChild(tile);
+    });
+    grid.style.setProperty('--board-rows', maxRow);
+    grid.appendChild(frag);
+  }
   function makeTile(b, hotkey) {
+    const kind = tileKind(b);
+    if (kind === 'note' || kind === 'checklist' || kind === 'header' || kind === 'snippet') {
+      return makeContentTile(b, kind);
+    }
     const isTool = !!b.tool;
     const isFolder = b.type === 'folder';
     const tile = document.createElement(isTool || isFolder ? 'div' : 'a');
@@ -2615,6 +2856,43 @@
         const svg = tmp.firstChild;
         if (svg) favImg.replaceWith(svg);
       });
+    }
+    return tile;
+  }
+  // ───── content tiles: note / checklist / header / snippet ─────
+  function makeContentTile(b, kind) {
+    const tile = document.createElement('div');
+    tile.className = 'tile tile-' + kind + (b.color ? ' has-color' : '');
+    tile.dataset.id = b.id;
+    tile.dataset.kind = kind;
+    if (b.color) tile.style.setProperty('--tile-color', b.color);
+    tile.draggable = true;
+    if (kind === 'note') {
+      tile.innerHTML =
+        '<div class="ct-title">' + escapeHtml(b.name || 'Note') + '</div>' +
+        '<div class="ct-note-body">' + escapeHtml(b.text || '').replace(/\n/g, '<br>') + '</div>';
+    } else if (kind === 'header') {
+      tile.innerHTML = '<div class="ct-header-text">' + escapeHtml(b.name || 'Section') + '</div>';
+    } else if (kind === 'snippet') {
+      tile.innerHTML =
+        '<div class="ct-snippet-head">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
+          '<span>' + escapeHtml(b.name || 'Snippet') + '</span>' +
+        '</div>' +
+        '<div class="ct-snippet-text">' + escapeHtml(b.text || '') + '</div>';
+    } else if (kind === 'checklist') {
+      const items = Array.isArray(b.items) ? b.items : [];
+      const done = items.filter(it => it.done).length;
+      let rows = '';
+      items.forEach((it, i) => {
+        rows += '<label class="ct-check-row' + (it.done ? ' done' : '') + '">' +
+          '<input type="checkbox" data-ci="' + i + '"' + (it.done ? ' checked' : '') + '>' +
+          '<span>' + escapeHtml(it.text || '') + '</span></label>';
+      });
+      tile.innerHTML =
+        '<div class="ct-title">' + escapeHtml(b.name || 'Checklist') +
+          '<span class="ct-check-count">' + done + '/' + items.length + '</span></div>' +
+        '<div class="ct-check-list">' + (rows || '<div class="ct-empty">empty — edit to add items</div>') + '</div>';
     }
     return tile;
   }
@@ -2666,6 +2944,33 @@
     if (tile.classList.contains('tile-curr')) { fetchRates(true); return; }
     const b = bookmarks.find(x => x.id === tile.dataset.id);
     if (!b) return;
+    const kind = tileKind(b);
+    // checklist: toggle an item
+    if (kind === 'checklist') {
+      const cb = e.target.closest('input[data-ci]');
+      if (cb) {
+        const idx = parseInt(cb.dataset.ci, 10);
+        if (b.items && b.items[idx]) {
+          b.items[idx].done = cb.checked;
+          save(DATA_KEY, bookmarks);
+          renderGrid();
+        }
+        return;
+      }
+      return; // clicking elsewhere on a checklist does nothing (edit via ctx menu)
+    }
+    // snippet: copy text to clipboard
+    if (kind === 'snippet') {
+      e.preventDefault();
+      const txt = b.text || '';
+      if (!txt) { showToast('snippet is empty'); return; }
+      navigator.clipboard.writeText(txt)
+        .then(() => showToast('copied: ' + b.name))
+        .catch(() => showToast('clipboard blocked', 'error'));
+      return;
+    }
+    // note / header: click does nothing (edit via context menu)
+    if (kind === 'note' || kind === 'header') return;
     const act = e.target.closest('.tile-act');
     if (act) {
       e.preventDefault(); e.stopPropagation();
@@ -2746,7 +3051,97 @@
     renderGrid();
   });
 
-  // ═══════════ CONTEXT MENU ═══════════
+  // ═══════════ BOARD DRAG / RESIZE ═══════════
+  // Pointer-based move & resize for tiles in board view, with snap-to-grid.
+  let boardOp = null; // { mode:'move'|'resize', id, tile, startX, startY, orig, cellW, cellH }
+  const BOARD_GAP = 8;        // must match the .view-board grid gap (0.5rem)
+  const BOARD_ROW_H = 64;     // must match grid-auto-rows
+  function boardCellMetrics() {
+    const cols = 12;
+    const totalGap = BOARD_GAP * (cols - 1);
+    const cellW = (grid.clientWidth - totalGap) / cols;
+    return { cellW: cellW + BOARD_GAP, cellH: BOARD_ROW_H + BOARD_GAP };
+  }
+  function isBoardMode() {
+    const ws = activeWs();
+    return ws && ws.viewMode === 'board' && !currentFolder &&
+      !window.matchMedia('(max-width: 720px)').matches;
+  }
+  grid.addEventListener('pointerdown', (e) => {
+    if (!isBoardMode() || e.button !== 0) return;
+    // don't start a drag from interactive controls (checklist checkboxes etc.)
+    if (e.target.closest('input, textarea, button, a, label')) {
+      if (!e.target.closest('.board-resize')) return;
+    }
+    const tile = e.target.closest('.board-tile');
+    if (!tile || !tile.dataset.id) return;
+    const b = bookmarks.find(x => x.id === tile.dataset.id);
+    if (!b || !b.board) return;
+    const onHandle = !!e.target.closest('.board-resize');
+    const m = boardCellMetrics();
+    boardOp = {
+      mode: onHandle ? 'resize' : 'move',
+      id: b.id, tile: tile, ref: b,
+      startX: e.clientX, startY: e.clientY,
+      orig: { x: b.board.x, y: b.board.y, w: b.board.w, h: b.board.h },
+      cellW: m.cellW, cellH: m.cellH,
+      moved: false
+    };
+    tile.setPointerCapture(e.pointerId);
+    tile.classList.add(onHandle ? 'board-resizing' : 'board-moving');
+    e.preventDefault();
+  });
+  grid.addEventListener('pointermove', (e) => {
+    if (!boardOp) return;
+    const dx = e.clientX - boardOp.startX;
+    const dy = e.clientY - boardOp.startY;
+    if (!boardOp.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+    boardOp.moved = true;
+    const dCol = Math.round(dx / boardOp.cellW);
+    const dRow = Math.round(dy / boardOp.cellH);
+    const o = boardOp.orig;
+    const t = boardOp.tile;
+    if (boardOp.mode === 'move') {
+      let nx = Math.max(0, Math.min(12 - o.w, o.x + dCol));
+      let ny = Math.max(0, o.y + dRow);
+      t.style.setProperty('--bx', nx);
+      t.style.setProperty('--by', ny);
+      boardOp.next = { x: nx, y: ny, w: o.w, h: o.h };
+    } else {
+      let nw = Math.max(1, Math.min(12 - o.x, o.w + dCol));
+      let nh = Math.max(1, o.h + dRow);
+      t.style.setProperty('--bw', nw);
+      t.style.setProperty('--bh', nh);
+      boardOp.next = { x: o.x, y: o.y, w: nw, h: nh };
+    }
+  });
+  function endBoardOp(e) {
+    if (!boardOp) return;
+    const op = boardOp;
+    boardOp = null;
+    op.tile.classList.remove('board-moving', 'board-resizing');
+    try { op.tile.releasePointerCapture(e.pointerId); } catch {}
+    if (op.moved) {
+      // a real drag happened — block the click that the browser fires next
+      grid._suppressClick = true;
+      setTimeout(() => { grid._suppressClick = false; }, 50);
+    }
+    if (op.moved && op.next) {
+      op.ref.board = op.next;
+      save(DATA_KEY, bookmarks);
+      renderGrid();
+    }
+  }
+  grid.addEventListener('pointerup', endBoardOp);
+  grid.addEventListener('pointercancel', endBoardOp);
+  // Suppress the click that follows a board drag so the tile doesn't open.
+  grid.addEventListener('click', (e) => {
+    if (grid._suppressClick && e.target.closest('.board-tile')) {
+      e.preventDefault(); e.stopPropagation();
+    }
+  }, true);
+
+
   document.addEventListener('contextmenu', (e) => {
     const tile = e.target.closest('.tile');
     if (tile && tile.dataset.id && !tile.classList.contains('tile-curr')) {
@@ -2837,6 +3232,11 @@
     let html = '<div class="ctx-label">Add</div>';
     html += '<div class="ctx-item" data-add="bookmark">' + iconSvg('link', '') + 'Bookmark</div>';
     html += '<div class="ctx-item" data-add="folder">' + iconSvg('folder', '') + 'Folder</div>';
+    html += '<div class="ctx-sep"></div><div class="ctx-label">Content</div>';
+    html += '<div class="ctx-item" data-add="note">' + iconSvg('file', '') + 'Note</div>';
+    html += '<div class="ctx-item" data-add="checklist">' + iconSvg('box', '') + 'Checklist</div>';
+    html += '<div class="ctx-item" data-add="header">' + iconSvg('bar', '') + 'Header</div>';
+    html += '<div class="ctx-item" data-add="snippet">' + iconSvg('terminal', '') + 'Snippet</div>';
     html += '<div class="ctx-sep"></div><div class="ctx-label">Tools</div>';
     TOOLS.forEach(t => {
       html += '<div class="ctx-item" data-tool="' + t.id + '">' + iconSvg(t.icon, '') + escapeHtml(t.name) + '</div>';
@@ -2848,8 +3248,18 @@
   function openTileCtx(b, x, y) {
     const isFolder = b.type === 'folder';
     const isTool = !!b.tool;
-    let html = '<div class="ctx-item" data-tile-act="open" data-id="' + b.id + '">' + iconSvg(isTool ? b.icon : (isFolder ? 'folder' : 'link'), '') + (isFolder ? 'Open folder' : isTool ? 'Open ' + escapeHtml(b.name) : 'Open link') + '</div>';
-    html += '<div class="ctx-item" data-tile-act="edit" data-id="' + b.id + '">' + iconSvg('settings', '') + 'Edit</div>';
+    const kind = tileKind(b);
+    const isContent = (kind === 'note' || kind === 'checklist' || kind === 'header' || kind === 'snippet');
+    let html = '';
+    if (isContent) {
+      if (kind === 'snippet') {
+        html += '<div class="ctx-item" data-tile-act="copy" data-id="' + b.id + '">' + iconSvg('file', '') + 'Copy text</div>';
+      }
+      html += '<div class="ctx-item" data-tile-act="edit" data-id="' + b.id + '">' + iconSvg('settings', '') + 'Edit ' + kind + '</div>';
+    } else {
+      html += '<div class="ctx-item" data-tile-act="open" data-id="' + b.id + '">' + iconSvg(isTool ? b.icon : (isFolder ? 'folder' : 'link'), '') + (isFolder ? 'Open folder' : isTool ? 'Open ' + escapeHtml(b.name) : 'Open link') + '</div>';
+      html += '<div class="ctx-item" data-tile-act="edit" data-id="' + b.id + '">' + iconSvg('settings', '') + 'Edit</div>';
+    }
     if (!b.parent && !isTool) {
       let subHtml = '';
       workspaces.forEach(w => {
@@ -2868,6 +3278,10 @@
     closeCtxMenu();
     if (item.dataset.add === 'bookmark') openAddModal('bookmark');
     else if (item.dataset.add === 'folder') openAddModal('folder');
+    else if (item.dataset.add === 'note') openContentModal('note');
+    else if (item.dataset.add === 'checklist') openContentModal('checklist');
+    else if (item.dataset.add === 'header') openContentModal('header');
+    else if (item.dataset.add === 'snippet') openContentModal('snippet');
     else if (item.dataset.tool === 'currency') {
       settings.currencyPairs.push({ from: 'USD', to: 'UAH', ws: settings.activeWs });
       save(SETTINGS_KEY, settings);
@@ -2878,7 +3292,7 @@
       if (!tool) return;
       const exists = bookmarks.find(b => b.tool === tool.id && b.ws === settings.activeWs && !b.parent);
       if (exists) { showToast(tool.name + ' already here'); return; }
-      bookmarks.push({ id: uid(), label: 'tool', name: tool.name, tool: tool.id, icon: tool.icon, ws: settings.activeWs, parent: currentFolder });
+      bookmarks.push({ id: uid(), kind: 'tool', label: 'tool', name: tool.name, tool: tool.id, icon: tool.icon, ws: settings.activeWs, parent: currentFolder });
       save(DATA_KEY, bookmarks);
       renderWsTabs();
       renderGrid();
@@ -2894,6 +3308,13 @@
         else if (b.url) window.open(b.url, '_blank', 'noopener');
       } else if (item.dataset.tileAct === 'edit') openEditModal(b.id);
       else if (item.dataset.tileAct === 'delete') deleteBookmark(b);
+      else if (item.dataset.tileAct === 'copy') {
+        const txt = b.text || '';
+        if (!txt) { showToast('snippet is empty'); return; }
+        navigator.clipboard.writeText(txt)
+          .then(() => showToast('copied: ' + b.name))
+          .catch(() => showToast('clipboard blocked', 'error'));
+      }
       else if (item.dataset.tileAct === 'move-ws') {
         b.ws = item.dataset.ws;
         save(DATA_KEY, bookmarks);
@@ -3059,6 +3480,11 @@
   function openEditModal(id) {
     const b = bookmarks.find(x => x.id === id);
     if (!b) return;
+    const k = tileKind(b);
+    if (k === 'note' || k === 'checklist' || k === 'header' || k === 'snippet') {
+      openContentModal(k, id);
+      return;
+    }
     editingId = id;
     const isTool = !!b.tool;
     const isFolder = b.type === 'folder';
@@ -3096,8 +3522,8 @@
     } else {
       if (editingType === 'bookmark' && !url) { showToast('url required'); return; }
       const newB = { id: uid(), label: fLabel.value.trim(), name: name, icon: selectedIcon, color: selectedColor, ws: fWs.value, parent: currentFolder };
-      if (editingType === 'folder') newB.type = 'folder';
-      else newB.url = url;
+      if (editingType === 'folder') { newB.type = 'folder'; newB.kind = 'folder'; }
+      else { newB.url = url; newB.kind = 'link'; }
       bookmarks.push(newB);
       showToast('added');
     }
@@ -3120,6 +3546,159 @@
     }
   });
   modalBackdrop.addEventListener('click', (e) => { if (e.target === modalBackdrop) closeModal(); });
+
+  // ═══════════ CONTENT TILE MODAL ═══════════
+  const contentBackdrop = $('contentBackdrop');
+  const contentBody = $('contentBody');
+  let contentEditId = null;
+  let contentKind = 'note';
+  let contentChecklist = []; // working copy of checklist items while editing
+
+  const CONTENT_LABELS = { note: 'Note', checklist: 'Checklist', header: 'Header', snippet: 'Snippet' };
+
+  function buildContentModal(kind, b) {
+    let h = '';
+    if (kind === 'header') {
+      h += '<div class="field"><label>section title</label><input type="text" id="cfName" maxlength="60" placeholder="— Production —"></div>';
+    } else if (kind === 'note') {
+      h += '<div class="field"><label>title</label><input type="text" id="cfName" maxlength="60" placeholder="Note"></div>';
+      h += '<div class="field"><label>text</label><textarea id="cfText" rows="6" placeholder="write anything…"></textarea></div>';
+    } else if (kind === 'snippet') {
+      h += '<div class="field"><label>label</label><input type="text" id="cfName" maxlength="60" placeholder="API token"></div>';
+      h += '<div class="field"><label>text to copy</label><textarea id="cfText" rows="3" placeholder="value copied to clipboard on click"></textarea></div>';
+    } else if (kind === 'checklist') {
+      h += '<div class="field"><label>title</label><input type="text" id="cfName" maxlength="60" placeholder="Checklist"></div>';
+      h += '<div class="field"><label>items</label><div class="cl-editor" id="clEditor"></div>' +
+        '<button type="button" class="btn btn-small" id="clAdd" style="margin-top:0.5rem;">+ add item</button></div>';
+    }
+    h += '<div class="field"><label>workspace</label><select id="cfWs"></select></div>';
+    h += '<div class="field"><label>color (optional)</label><div class="color-palette" id="cfColorPalette"></div></div>';
+    contentBody.innerHTML = h;
+
+    // workspace select
+    const ws = $('cfWs');
+    workspaces.forEach(w => ws.appendChild(new Option(w.name, w.id)));
+    ws.value = (b && b.ws) || settings.activeWs;
+    // name/text
+    if ($('cfName')) $('cfName').value = (b && b.name) || '';
+    if ($('cfText')) $('cfText').value = (b && b.text) || '';
+    // color palette (reuse the same swatches)
+    buildContentColorPalette((b && b.color) || null);
+    // checklist editor
+    if (kind === 'checklist') {
+      contentChecklist = (b && Array.isArray(b.items)) ? b.items.map(it => ({ text: it.text, done: !!it.done })) : [];
+      renderChecklistEditor();
+      $('clAdd').addEventListener('click', () => {
+        contentChecklist.push({ text: '', done: false });
+        renderChecklistEditor(true);
+      });
+    }
+  }
+  let contentColor = null;
+  function buildContentColorPalette(current) {
+    contentColor = current || null;
+    const pal = $('cfColorPalette');
+    if (!pal) return;
+    pal.innerHTML = '';
+    TILE_COLORS.forEach(c => {
+      const dot = document.createElement('div');
+      dot.className = 'color-dot' + (c === null ? ' color-none' : '') +
+        ((c || null) === (current || null) ? ' selected' : '');
+      if (c !== null) dot.style.background = c;
+      dot.addEventListener('click', () => {
+        contentColor = c || null;
+        pal.querySelectorAll('.color-dot').forEach(el => el.classList.toggle('selected', el === dot));
+      });
+      pal.appendChild(dot);
+    });
+  }
+  function renderChecklistEditor(focusLast) {
+    const ed = $('clEditor');
+    if (!ed) return;
+    ed.innerHTML = '';
+    contentChecklist.forEach((it, i) => {
+      const row = document.createElement('div');
+      row.className = 'cl-row';
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.value = it.text;
+      inp.placeholder = 'item ' + (i + 1);
+      inp.addEventListener('input', () => { contentChecklist[i].text = inp.value; });
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          contentChecklist.splice(i + 1, 0, { text: '', done: false });
+          renderChecklistEditor(true);
+        }
+      });
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'cl-del';
+      del.textContent = '×';
+      del.addEventListener('click', () => {
+        contentChecklist.splice(i, 1);
+        renderChecklistEditor();
+      });
+      row.appendChild(inp);
+      row.appendChild(del);
+      ed.appendChild(row);
+    });
+    if (focusLast) {
+      const inputs = ed.querySelectorAll('input');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    }
+  }
+  function openContentModal(kind, editId) {
+    contentKind = kind;
+    contentEditId = editId || null;
+    const b = editId ? bookmarks.find(x => x.id === editId) : null;
+    $('contentTitle').textContent = (editId ? 'Edit ' : 'New ') + CONTENT_LABELS[kind].toLowerCase();
+    buildContentModal(kind, b);
+    $('contentDelete').style.display = editId ? 'inline-block' : 'none';
+    contentBackdrop.classList.add('active');
+    setTimeout(() => { const f = $('cfName'); if (f) f.focus(); }, 50);
+  }
+  function closeContentModal() {
+    contentBackdrop.classList.remove('active');
+    contentEditId = null;
+  }
+  $('contentCancel').addEventListener('click', closeContentModal);
+  contentBackdrop.addEventListener('click', (e) => { if (e.target === contentBackdrop) closeContentModal(); });
+  $('contentSave').addEventListener('click', () => {
+    const name = ($('cfName') ? $('cfName').value.trim() : '');
+    if (!name) { showToast('title required'); return; }
+    const text = $('cfText') ? $('cfText').value : '';
+    const wsId = $('cfWs').value;
+    if (contentEditId) {
+      const b = bookmarks.find(x => x.id === contentEditId);
+      if (!b) { closeContentModal(); return; }
+      b.name = name;
+      b.color = contentColor;
+      b.ws = wsId;
+      if (contentKind === 'note' || contentKind === 'snippet') b.text = text;
+      if (contentKind === 'checklist') b.items = contentChecklist.filter(it => it.text.trim());
+      showToast('updated');
+    } else {
+      const nb = { id: uid(), kind: contentKind, name: name, color: contentColor,
+        ws: wsId, parent: currentFolder };
+      if (contentKind === 'note' || contentKind === 'snippet') nb.text = text;
+      if (contentKind === 'checklist') nb.items = contentChecklist.filter(it => it.text.trim());
+      bookmarks.push(nb);
+      showToast(CONTENT_LABELS[contentKind] + ' added');
+    }
+    save(DATA_KEY, bookmarks);
+    renderGrid();
+    closeContentModal();
+  });
+  $('contentDelete').addEventListener('click', () => {
+    if (!contentEditId) return;
+    if (!confirm('Delete this tile?')) return;
+    bookmarks = bookmarks.filter(x => x.id !== contentEditId);
+    save(DATA_KEY, bookmarks);
+    renderGrid();
+    closeContentModal();
+    showToast('removed');
+  });
 
   // ═══════════ TOOLS DISPATCHER ═══════════
   function openTool(name) {
@@ -3952,7 +4531,7 @@
           const name = (a.textContent || '').trim() || url;
           let host = '';
           try { host = new URL(url).hostname.replace(/^www\./, ''); } catch {}
-          bookmarks.push({ id: uid(), label: '', name: name.slice(0, 40), url: url, icon: 'link', color: null, ws: settings.activeWs, parent: null });
+          bookmarks.push({ id: uid(), kind: 'link', label: '', name: name.slice(0, 40), url: url, icon: 'link', color: null, ws: settings.activeWs, parent: null });
           added++;
         });
         save(DATA_KEY, bookmarks);
