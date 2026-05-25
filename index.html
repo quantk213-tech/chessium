@@ -502,6 +502,40 @@
     .board-tile.board-moving { cursor: grabbing; z-index: 10; opacity: 0.85; }
     .board-tile.board-resizing { z-index: 10; outline: 1px dashed var(--accent-bright); }
     .grid.view-board .board-tile { cursor: grab; }
+
+    /* adaptive board tiles — hide detail as the tile shrinks */
+    .board-tile[data-bw="xs"] .tile-name,
+    .board-tile[data-bw="xs"] .tile-host,
+    .board-tile[data-bw="xs"] .tile-label,
+    .board-tile[data-bh="xs"] .tile-name,
+    .board-tile[data-bh="xs"] .tile-host,
+    .board-tile[data-bh="xs"] .tile-label {
+      display: none;
+    }
+    .board-tile[data-bw="xs"], .board-tile[data-bh="xs"] {
+      align-items: center; justify-content: center;
+    }
+    .board-tile[data-bw="xs"] .tile-head,
+    .board-tile[data-bh="xs"] .tile-head {
+      justify-content: center; margin: 0;
+    }
+    /* short tiles: trim the host line to avoid clipping */
+    .board-tile[data-bh="s"] .tile-host { display: none; }
+    .board-tile[data-bh="xs"] .ct-note-body,
+    .board-tile[data-bh="xs"] .ct-check-list,
+    .board-tile[data-bh="xs"] .ct-snippet-text { display: none; }
+    /* every board tile clips its overflow cleanly instead of spilling */
+    .grid.view-board .board-tile { overflow: hidden; }
+
+    /* pinned tiles float above the rest */
+    .board-tile.board-pinned { z-index: 5; }
+    .board-tile.board-pinned::after {
+      content: '';
+      position: absolute; top: 6px; right: 6px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent-bright);
+      box-shadow: 0 0 6px var(--accent-bright);
+    }
     /* on narrow screens the board collapses to a single readable column */
     @media (max-width: 720px) {
       .grid.view-board {
@@ -1022,6 +1056,8 @@
       border-radius: 8px;
       padding: 0.4rem;
       min-width: 180px;
+      max-height: 70vh;
+      overflow-y: auto;
     }
     .ctx-item-with-sub:hover .ctx-sub { display: block; }
     .ctx-sep {
@@ -2246,8 +2282,7 @@
     currencyPairs: [], activeWs: 'base',
     weatherCity: { name: 'Kyiv', lat: 50.45, lon: 30.52 },
     sync: { gistId: '', token: '', lastSync: 0, autoPull: false, autoPush: false },
-    searchBar: { engines: ['google', 'ddg'] },
-    quickLaunch: true
+    searchBar: { engines: ['google', 'ddg'] }
   };
   const DEFAULT_WORKSPACES = [{ id: 'base', name: 'BASE', viewMode: 'grid', cols: 4 }];
   const DEFAULT_BOOKMARKS = [{ id: 't-notes', kind: 'tool', label: 'tool', name: 'Notes', tool: 'notes', icon: 'file', ws: 'base', parent: null }];
@@ -2386,6 +2421,14 @@
     if (kind === 'header') return { w: 6, h: 1 };
     if (kind === 'snippet') return { w: 3, h: 1 };
     return { w: 2, h: 2 }; // link, folder, tool
+  }
+  // Minimum board dimensions per kind — keeps tiles usable, avoids scrollbars.
+  function minBoardSize(kind) {
+    if (kind === 'checklist') return { w: 2, h: 2 };
+    if (kind === 'note') return { w: 2, h: 2 };
+    if (kind === 'header') return { w: 2, h: 1 };
+    if (kind === 'snippet') return { w: 2, h: 1 };
+    return { w: 1, h: 1 }; // link, folder, tool — can shrink to icon-only
   }
   // Assign non-overlapping board coords to any tiles in a workspace that lack them.
   function ensureBoardCoords(wsId) {
@@ -2719,13 +2762,6 @@
     if (currentFolder) return bookmarks.filter(b => b.parent === currentFolder);
     return bookmarks.filter(b => !b.parent && b.ws === settings.activeWs);
   }
-  function getQuickLaunchMap() {
-    if (!settings.quickLaunch) return {};
-    const items = getVisibleBookmarks().filter(b => !b.type && !b.tool && b.url);
-    const map = {};
-    items.slice(0, 9).forEach((b, i) => { map[b.id] = i + 1; });
-    return map;
-  }
   let _renderQueued = false;
   function renderGrid() {
     // coalesce bursts of renderGrid() calls in the same frame into one paint
@@ -2750,9 +2786,8 @@
     }
     grid.style.removeProperty('--board-rows');
 
-    const qlMap = getQuickLaunchMap();
     const frag = document.createDocumentFragment();
-    items.forEach(b => frag.appendChild(makeTile(b, qlMap[b.id])));
+    items.forEach(b => frag.appendChild(makeTile(b)));
 
     if (!currentFolder) {
       (settings.currencyPairs || []).forEach(pair => {
@@ -2795,7 +2830,7 @@
       return (A.y - B.y) || (A.x - B.x);
     });
     ordered.forEach(b => {
-      const tile = makeTile(b, null);
+      const tile = makeTile(b);
       const bd = b.board || { x: 0, y: 0, w: 2, h: 2 };
       tile.classList.add('board-tile');
       tile.draggable = false; // board uses pointer-drag, not HTML5 DnD
@@ -2803,6 +2838,10 @@
       tile.style.setProperty('--by', bd.y);
       tile.style.setProperty('--bw', bd.w);
       tile.style.setProperty('--bh', bd.h);
+      // size buckets drive adaptive layout (CSS can't compare custom props)
+      tile.dataset.bw = bd.w <= 1 ? 'xs' : (bd.w <= 2 ? 's' : 'm');
+      tile.dataset.bh = bd.h <= 1 ? 'xs' : (bd.h <= 2 ? 's' : 'm');
+      if (b.pinned) tile.classList.add('board-pinned');
       const handle = document.createElement('div');
       handle.className = 'board-resize';
       handle.title = 'resize';
@@ -2813,7 +2852,7 @@
     grid.style.setProperty('--board-rows', maxRow);
     grid.appendChild(frag);
   }
-  function makeTile(b, hotkey) {
+  function makeTile(b) {
     const kind = tileKind(b);
     if (kind === 'note' || kind === 'checklist' || kind === 'header' || kind === 'snippet') {
       return makeContentTile(b, kind);
@@ -2838,15 +2877,13 @@
     } else {
       try { host = new URL(b.url).hostname.replace(/^www\./, ''); } catch { host = b.url || ''; }
     }
-    const hotkeyHtml = hotkey ? '<div class="tile-hotkey">' + hotkey + '</div>' : '';
     tile.innerHTML =
       '<div class="tile-head">' +
         tileIconHtml(b, isFolder) +
         '<div class="tile-label">' + escapeHtml(b.label || '') + '</div>' +
       '</div>' +
       '<div class="tile-name">' + escapeHtml(b.name || 'Unnamed') + '</div>' +
-      '<div class="tile-host">' + escapeHtml(host) + '</div>' +
-      hotkeyHtml;
+      '<div class="tile-host">' + escapeHtml(host) + '</div>';
     // if a favicon fails to load, fall back to the default link/folder glyph
     const favImg = tile.querySelector('.tile-favicon');
     if (favImg) {
@@ -3069,12 +3106,13 @@
   }
   grid.addEventListener('pointerdown', (e) => {
     if (!isBoardMode() || e.button !== 0) return;
-    // don't start a drag from interactive controls (checklist checkboxes etc.)
-    if (e.target.closest('input, textarea, button, a, label')) {
-      if (!e.target.closest('.board-resize')) return;
-    }
     const tile = e.target.closest('.board-tile');
     if (!tile || !tile.dataset.id) return;
+    // don't start a drag from interactive controls *inside* a tile
+    // (checklist checkboxes, embedded buttons) — but the tile itself is fine,
+    // even when it's an <a> bookmark tile.
+    const interactive = e.target.closest('input, textarea, button, label');
+    if (interactive && tile.contains(interactive) && !e.target.closest('.board-resize')) return;
     const b = bookmarks.find(x => x.id === tile.dataset.id);
     if (!b || !b.board) return;
     const onHandle = !!e.target.closest('.board-resize');
@@ -3108,8 +3146,9 @@
       t.style.setProperty('--by', ny);
       boardOp.next = { x: nx, y: ny, w: o.w, h: o.h };
     } else {
-      let nw = Math.max(1, Math.min(12 - o.x, o.w + dCol));
-      let nh = Math.max(1, o.h + dRow);
+      const mn = minBoardSize(tileKind(boardOp.ref));
+      let nw = Math.max(mn.w, Math.min(12 - o.x, o.w + dCol));
+      let nh = Math.max(mn.h, o.h + dRow);
       t.style.setProperty('--bw', nw);
       t.style.setProperty('--bh', nh);
       boardOp.next = { x: o.x, y: o.y, w: nw, h: nh };
@@ -3232,15 +3271,19 @@
     let html = '<div class="ctx-label">Add</div>';
     html += '<div class="ctx-item" data-add="bookmark">' + iconSvg('link', '') + 'Bookmark</div>';
     html += '<div class="ctx-item" data-add="folder">' + iconSvg('folder', '') + 'Folder</div>';
-    html += '<div class="ctx-sep"></div><div class="ctx-label">Content</div>';
-    html += '<div class="ctx-item" data-add="note">' + iconSvg('file', '') + 'Note</div>';
-    html += '<div class="ctx-item" data-add="checklist">' + iconSvg('box', '') + 'Checklist</div>';
-    html += '<div class="ctx-item" data-add="header">' + iconSvg('bar', '') + 'Header</div>';
-    html += '<div class="ctx-item" data-add="snippet">' + iconSvg('terminal', '') + 'Snippet</div>';
-    html += '<div class="ctx-sep"></div><div class="ctx-label">Tools</div>';
+    // Content submenu
+    let contentSub = '';
+    contentSub += '<div class="ctx-item" data-add="note">' + iconSvg('file', '') + 'Note</div>';
+    contentSub += '<div class="ctx-item" data-add="checklist">' + iconSvg('box', '') + 'Checklist</div>';
+    contentSub += '<div class="ctx-item" data-add="header">' + iconSvg('bar', '') + 'Header</div>';
+    contentSub += '<div class="ctx-item" data-add="snippet">' + iconSvg('terminal', '') + 'Snippet</div>';
+    html += '<div class="ctx-item ctx-item-with-sub">' + iconSvg('file', '') + 'Content<div class="ctx-sub">' + contentSub + '</div></div>';
+    // Tools submenu
+    let toolsSub = '';
     TOOLS.forEach(t => {
-      html += '<div class="ctx-item" data-tool="' + t.id + '">' + iconSvg(t.icon, '') + escapeHtml(t.name) + '</div>';
+      toolsSub += '<div class="ctx-item" data-tool="' + t.id + '">' + iconSvg(t.icon, '') + escapeHtml(t.name) + '</div>';
     });
+    html += '<div class="ctx-item ctx-item-with-sub">' + iconSvg('terminal', '') + 'Tools<div class="ctx-sub">' + toolsSub + '</div></div>';
     html += '<div class="ctx-sep"></div>';
     html += '<div class="ctx-item" data-action="import-browser">' + iconSvg('upload', '') + 'Import browser bookmarks</div>';
     showCtxMenu(x, y, html);
@@ -3269,6 +3312,7 @@
       if (subHtml) html += '<div class="ctx-item ctx-item-with-sub">' + iconSvg('layers', '') + 'Move to workspace<div class="ctx-sub">' + subHtml + '</div></div>';
     }
     html += '<div class="ctx-sep"></div>';
+    html += '<div class="ctx-item" data-tile-act="pin" data-id="' + b.id + '">' + iconSvg('pin', '') + (b.pinned ? 'Unpin' : 'Pin on top') + '</div>';
     html += '<div class="ctx-item danger" data-tile-act="delete" data-id="' + b.id + '">' + iconSvg('refresh', '') + 'Delete</div>';
     showCtxMenu(x, y, html);
   }
@@ -3314,6 +3358,12 @@
         navigator.clipboard.writeText(txt)
           .then(() => showToast('copied: ' + b.name))
           .catch(() => showToast('clipboard blocked', 'error'));
+      }
+      else if (item.dataset.tileAct === 'pin') {
+        b.pinned = !b.pinned;
+        save(DATA_KEY, bookmarks);
+        renderGrid();
+        showToast(b.pinned ? 'pinned on top' : 'unpinned');
       }
       else if (item.dataset.tileAct === 'move-ws') {
         b.ws = item.dataset.ws;
@@ -4625,8 +4675,6 @@
     h += widgetToggleRow('seconds', 'Seconds in clock', 'show seconds');
     h += widgetToggleRow('deadline', 'Deadline badge', 'urgent task card beside clock');
     h += widgetToggleRow('idleDim', 'Idle dim', 'dim screen after 60s idle');
-    h += '<div class="toggle-row"><div class="toggle-row-label">Quick-launch hotkeys <small>Alt+1..9 opens first 9 links</small></div>' +
-      '<div class="toggle' + (settings.quickLaunch ? ' on' : '') + '" data-ql></div></div>';
     h += '</div>';
 
     // Workspace view
@@ -4741,14 +4789,6 @@
         if (k === 'idleDim') setupIdle();
       });
     });
-    const qlT = settingsBody.querySelector('[data-ql]');
-    if (qlT) qlT.addEventListener('click', () => {
-      settings.quickLaunch = !settings.quickLaunch;
-      qlT.classList.toggle('on', settings.quickLaunch);
-      save(SETTINGS_KEY, settings);
-      renderGrid();
-    });
-
     // view mode + cols
     const vm = $('setViewMode');
     if (vm) vm.addEventListener('change', () => {
@@ -5090,15 +5130,6 @@
     if ((e.ctrlKey || e.metaKey) && e.key === '/') {
       e.preventDefault();
       if (settings.widgets.aibar) aibar.classList.toggle('hidden');
-      return;
-    }
-    // Alt+1..9 → quick launch
-    if (e.altKey && !e.ctrlKey && !e.metaKey && /^Digit[1-9]$/.test(e.code)) {
-      if (!settings.quickLaunch) return;
-      const n = parseInt(e.code.slice(5));
-      const items = getVisibleBookmarks().filter(b => !b.type && !b.tool && b.url);
-      const target = items[n - 1];
-      if (target) { e.preventDefault(); window.open(target.url, '_blank', 'noopener'); }
       return;
     }
     // Escape → close topmost
