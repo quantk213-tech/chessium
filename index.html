@@ -4141,7 +4141,7 @@
 
     // Install app (PWA)
     h += '<div class="settings-section" data-section="pwa"><h3>Install as app</h3>';
-    h += '<small style="color:var(--fg-dim);display:block;margin-bottom:0.8rem;font-size:0.7rem;">install chessium to your device for a standalone window and full offline use. on iPhone / iPad, open the browser share menu and choose &ldquo;Add to Home Screen&rdquo;.</small>';
+    h += '<small style="color:var(--fg-dim);display:block;margin-bottom:0.8rem;font-size:0.7rem;">install chessium to your device for a standalone window and a home-screen icon. on iPhone / iPad, open the browser share menu and choose &ldquo;Add to Home Screen&rdquo;.</small>';
     h += '<button class="btn btn-small" id="pwaInstallBtn">install app</button>';
     h += '</div>';
 
@@ -4561,15 +4561,19 @@
   }
 
   // ═══════════ PWA ═══════════
-  // Register the service worker for offline support.
+  // Offline support was removed — the service worker caused ERR_FAILED crashes.
+  // This kill-switch unregisters any service worker still installed from an
+  // older version and clears its caches, so stale clients self-heal on load.
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(() => {
-        // silent — app still works fully online without the SW
-      });
-    });
+    navigator.serviceWorker.getRegistrations().then((regs) => {
+      regs.forEach((reg) => reg.unregister());
+    }).catch(() => {});
+    if (window.caches && caches.keys) {
+      caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {});
+    }
   }
-  // Capture the install prompt so a button in Settings can trigger it.
+  // The app is still installable via the manifest (standalone window, home-screen
+  // icon) — it just won't work offline.
   let deferredInstallPrompt = null;
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
