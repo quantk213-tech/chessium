@@ -299,6 +299,27 @@
 
     /* ─── GRID WRAPPER ─── */
     .grid-wrap { max-width: 1400px; width: 100%; margin: 0 auto; }
+    @keyframes gridSwap {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .grid.grid-swap { animation: gridSwap 0.22s ease; }
+
+    /* ─── INTERFACE DENSITY ─── */
+    /* cozy is the default (no overrides). compact tightens, spacious loosens. */
+    html[data-density="compact"] .grid.view-grid,
+    html[data-density="compact"] .grid.view-compact { gap: 0.45rem; }
+    html[data-density="compact"] .tile { padding: 0.7rem 0.85rem; min-height: auto; }
+    html[data-density="compact"] .tile-name { font-size: 0.95rem; }
+    html[data-density="compact"] .main { padding-top: 1rem; }
+    html[data-density="compact"] .ws-tabs { margin-bottom: 0.8rem; }
+
+    html[data-density="spacious"] .grid.view-grid,
+    html[data-density="spacious"] .grid.view-compact { gap: 1.1rem; }
+    html[data-density="spacious"] .tile { padding: 1.5rem 1.6rem; }
+    html[data-density="spacious"] .tile-name { font-size: 1.35rem; }
+    html[data-density="spacious"] .main { padding-top: 2.2rem; }
+    html[data-density="spacious"] .ws-tabs { margin-bottom: 1.8rem; }
 
     /* ─── VIEW MODES ─── */
 
@@ -475,6 +496,7 @@
       grid-template-rows: repeat(var(--board-rows, 1), 64px);
       gap: 0.5rem;
       align-content: start;
+      position: relative;
     }
     .grid.view-board .board-tile {
       grid-column: calc(var(--bx) + 1) / span var(--bw);
@@ -502,6 +524,18 @@
     .board-tile.board-moving { cursor: grabbing; z-index: 10; opacity: 0.85; }
     .board-tile.board-resizing { z-index: 10; outline: 1px dashed var(--accent-bright); }
     .grid.view-board .board-tile { cursor: grab; }
+    /* snap guides — alignment lines shown while dragging */
+    .snap-guides {
+      position: absolute; inset: 0;
+      pointer-events: none; z-index: 9;
+    }
+    .snap-guide {
+      position: absolute;
+      background: var(--accent-bright);
+      box-shadow: 0 0 4px var(--accent-bright);
+    }
+    .snap-guide-x { top: 0; bottom: 0; width: 2px; margin-left: -1px; }
+    .snap-guide-y { left: 0; right: 0; height: 2px; margin-top: -1px; }
 
     /* adaptive board tiles — hide detail as the tile shrinks */
     .board-tile[data-bw="xs"] .tile-name,
@@ -1184,14 +1218,12 @@
     .aibar input::placeholder { color: var(--fg-dim); }
     .ai-engines {
       display: flex; align-items: center; gap: 0.4rem;
-      flex: 1 1 auto; min-width: 0;
-      overflow-x: auto; overflow-y: hidden;
+      flex: 0 1 auto; min-width: 0;
+      overflow-x: auto; overflow-y: visible;
       scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
-      padding: 30px 0 2px;
-      margin-top: -28px;
-      -webkit-mask-image: linear-gradient(to right, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
-      mask-image: linear-gradient(to right, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
+      padding: 34px 2px 2px;
+      margin-top: -32px;
     }
     .ai-engines::-webkit-scrollbar { display: none; }
     .ai-group { display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
@@ -1218,25 +1250,41 @@
     .ai-btn[data-eng="deepseek"]{ color: #6671f8; }
     .ai-btn[data-eng="google"]  { color: #4285f4; }
     .ai-btn[data-eng="ddg"]     { color: #de5833; }
-    .ai-btn .ai-tooltip {
-      position: absolute; bottom: 100%; left: 50%;
-      transform: translateX(-50%) translateY(-6px);
-      background: var(--bg-2);
-      border: 1px solid var(--border-strong);
-      color: var(--fg);
-      padding: 0.3rem 0.6rem; border-radius: 4px;
-      font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase;
+    /* shared engine tooltip — single element, child of .aibar, never clipped */
+    .bar-tooltip {
+      position: absolute;
+      bottom: calc(100% + 9px);
+      left: 0;
+      transform: translateX(-50%);
+      background: var(--fg);
+      color: var(--bg);
+      padding: 0.22rem 0.5rem;
+      border-radius: 5px;
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
       white-space: nowrap;
-      opacity: 0; pointer-events: none;
-      transition: opacity 0.12s;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.12s ease, transform 0.12s ease;
+      z-index: 10;
     }
-    .ai-btn:hover .ai-tooltip { opacity: 1; }
+    .bar-tooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%; left: 50%;
+      transform: translateX(-50%);
+      border: 4px solid transparent;
+      border-top-color: var(--fg);
+    }
+    .bar-tooltip.show { opacity: 1; }
     @media (max-width: 640px) {
       .aibar { gap: 0.3rem; padding: 0.4rem 0.45rem; max-width: 96vw; }
       .aibar input { width: 96px; max-width: 32vw; padding: 0.4rem 0.35rem; }
       .aibar-lead { width: 12px; height: 12px; }
       .ai-btn { width: 30px; height: 30px; }
-      .ai-btn .ai-tooltip { display: none; }
+      .bar-tooltip { display: none; }
     }
 
     /* ─── TODO PANEL ─── */
@@ -1944,6 +1992,7 @@
       <div class="ai-divider"></div>
       <div class="ai-group" id="searchGroup"></div>
     </div>
+    <div class="bar-tooltip" id="barTooltip"></div>
   </div>
 
   <!-- TODO PANEL -->
@@ -2282,7 +2331,8 @@
     currencyPairs: [], activeWs: 'base',
     weatherCity: { name: 'Kyiv', lat: 50.45, lon: 30.52 },
     sync: { gistId: '', token: '', lastSync: 0, autoPull: false, autoPush: false },
-    searchBar: { engines: ['google', 'ddg'] }
+    searchBar: { engines: ['google', 'ddg'] },
+    density: 'cozy'
   };
   const DEFAULT_WORKSPACES = [{ id: 'base', name: 'BASE', viewMode: 'grid', cols: 4 }];
   const DEFAULT_BOOKMARKS = [{ id: 't-notes', kind: 'tool', label: 'tool', name: 'Notes', tool: 'notes', icon: 'file', ws: 'base', parent: null }];
@@ -2519,6 +2569,10 @@
     }
     custom.textContent = settings.customCss || '';
   }
+  function applyDensity() {
+    const d = settings.density || 'cozy';
+    document.documentElement.dataset.density = d;
+  }
   function applyBg() {
     const layer = $('bgLayer');
     const dim = $('bgLayerDim');
@@ -2632,6 +2686,15 @@
 
   // ═══════════ WORKSPACES ═══════════
   function activeWs() { return workspaces.find(w => w.id === settings.activeWs) || workspaces[0]; }
+  // Brief fade+slide when the grid content swaps (workspace switch).
+  function animateGridSwap() {
+    requestAnimationFrame(() => {
+      grid.classList.remove('grid-swap');
+      // force reflow so the animation restarts even on rapid switches
+      void grid.offsetWidth;
+      grid.classList.add('grid-swap');
+    });
+  }
 
   function renderWsTabs() {
     wsTabs.innerHTML = '';
@@ -2692,6 +2755,7 @@
       currentFolder = null;
       renderWsTabs();
       renderGrid();
+      animateGridSwap();
       return;
     }
     if (e.target.closest('#wsAddBtn')) openSettings('workspaces');
@@ -3023,7 +3087,29 @@
     } else if (b.tool) {
       e.preventDefault();
       openTool(b.tool);
+    } else if (b.url) {
+      const bg = e.ctrlKey || e.metaKey || e.button === 1;
+      // In board view the pointer-drag cancels native <a> navigation, so we must
+      // open the link in JS. In other views the native <a> handles a plain click
+      // (incl. ctrl+click background tabs) — only intervene for board.
+      if (isBoardMode()) {
+        e.preventDefault();
+        const w = window.open(b.url, '_blank', 'noopener');
+        if (bg && w) { try { w.blur(); window.focus(); } catch {} }
+      }
     }
+  });
+  // middle-click on a board tile → open link in a background tab
+  // (non-board <a> tiles get this natively from the browser)
+  grid.addEventListener('auxclick', (e) => {
+    if (e.button !== 1 || !isBoardMode()) return;
+    const tile = e.target.closest('.tile');
+    if (!tile || !tile.dataset.id) return;
+    const b = bookmarks.find(x => x.id === tile.dataset.id);
+    if (!b || !b.url) return;
+    e.preventDefault();
+    const w = window.open(b.url, '_blank', 'noopener');
+    if (w) { try { w.blur(); window.focus(); } catch {} }
   });
   function deleteBookmark(b) {
     const isFolder = b.type === 'folder';
@@ -3104,6 +3190,58 @@
     return ws && ws.viewMode === 'board' && !currentFolder &&
       !window.matchMedia('(max-width: 720px)').matches;
   }
+  // Snap a dragged tile's candidate position to align flush with neighbour edges.
+  // Returns adjusted {x, y} plus guide lines to draw.
+  function snapToNeighbors(x, y, w, h, dragId) {
+    const TOL = 1; // cells: snap when within this distance of an alignment
+    const others = bookmarks.filter(b =>
+      b.id !== dragId && !b.parent && b.ws === settings.activeWs &&
+      b.board && typeof b.board.x === 'number');
+    let bestX = null, bestXDist = TOL + 0.01, guideX = null;
+    let bestY = null, bestYDist = TOL + 0.01, guideY = null;
+    // candidate X alignments: my left↔their left, my left↔their right,
+    // my right↔their right, my right↔their left
+    others.forEach(b => {
+      const oL = b.board.x, oR = b.board.x + b.board.w;
+      [[oL, oL], [oR - w, oR], [oR - w, oR], [oL - w, oL]].forEach(([cx, line]) => {
+        if (cx < 0 || cx + w > 12) return;
+        const d = Math.abs(x - cx);
+        if (d < bestXDist) { bestXDist = d; bestX = cx; guideX = line; }
+      });
+      const oT = b.board.y, oB = b.board.y + b.board.h;
+      [[oT, oT], [oB - h, oB], [oT - h, oT]].forEach(([cy, line]) => {
+        if (cy < 0) return;
+        const d = Math.abs(y - cy);
+        if (d < bestYDist) { bestYDist = d; bestY = cy; guideY = line; }
+      });
+    });
+    const guides = [];
+    if (bestX !== null) { x = bestX; guides.push({ axis: 'x', at: guideX }); }
+    if (bestY !== null) { y = bestY; guides.push({ axis: 'y', at: guideY }); }
+    return { x: x, y: y, guides: guides };
+  }
+  function showSnapGuides(guides) {
+    let layer = grid.querySelector('.snap-guides');
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.className = 'snap-guides';
+      grid.appendChild(layer);
+    }
+    layer.innerHTML = '';
+    if (!guides || !guides.length) return;
+    const m = boardCellMetrics();
+    guides.forEach(g => {
+      const el = document.createElement('div');
+      el.className = 'snap-guide snap-guide-' + g.axis;
+      if (g.axis === 'x') el.style.left = (g.at * m.cellW) + 'px';
+      else el.style.top = (g.at * m.cellH) + 'px';
+      layer.appendChild(el);
+    });
+  }
+  function clearSnapGuides() {
+    const layer = grid.querySelector('.snap-guides');
+    if (layer) layer.innerHTML = '';
+  }
   grid.addEventListener('pointerdown', (e) => {
     if (!isBoardMode() || e.button !== 0) return;
     const tile = e.target.closest('.board-tile');
@@ -3142,9 +3280,12 @@
     if (boardOp.mode === 'move') {
       let nx = Math.max(0, Math.min(12 - o.w, o.x + dCol));
       let ny = Math.max(0, o.y + dRow);
+      const snapped = snapToNeighbors(nx, ny, o.w, o.h, boardOp.id);
+      nx = snapped.x; ny = snapped.y;
       t.style.setProperty('--bx', nx);
       t.style.setProperty('--by', ny);
       boardOp.next = { x: nx, y: ny, w: o.w, h: o.h };
+      showSnapGuides(snapped.guides);
     } else {
       const mn = minBoardSize(tileKind(boardOp.ref));
       let nw = Math.max(mn.w, Math.min(12 - o.x, o.w + dCol));
@@ -3160,6 +3301,7 @@
     boardOp = null;
     op.tile.classList.remove('board-moving', 'board-resizing');
     try { op.tile.releasePointerCapture(e.pointerId); } catch {}
+    clearSnapGuides();
     if (op.moved) {
       // a real drag happened — block the click that the browser fires next
       grid._suppressClick = true;
@@ -4178,7 +4320,8 @@
     const btn = document.createElement('button');
     btn.className = 'ai-btn';
     btn.dataset.eng = id;
-    btn.innerHTML = (ENGINE_ICONS[id] || '') + '<span class="ai-tooltip">' + cfg.name + '</span>';
+    btn.dataset.engname = cfg.name;
+    btn.innerHTML = (ENGINE_ICONS[id] || '');
     return btn;
   }
 
@@ -4200,6 +4343,28 @@
   aiInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runEngine('google'); }
   });
+  // shared engine tooltip — positioned relative to .aibar so it never clips
+  const barTooltip = $('barTooltip');
+  function showBarTooltip(btn) {
+    const name = btn.dataset.engname;
+    if (!name) return;
+    barTooltip.textContent = name;
+    const barRect = aibar.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    const cx = btnRect.left + btnRect.width / 2 - barRect.left;
+    barTooltip.style.left = cx + 'px';
+    barTooltip.classList.add('show');
+  }
+  function hideBarTooltip() { barTooltip.classList.remove('show'); }
+  aibar.addEventListener('pointerover', (e) => {
+    const btn = e.target.closest('.ai-btn');
+    if (btn) showBarTooltip(btn);
+  });
+  aibar.addEventListener('pointerout', (e) => {
+    const btn = e.target.closest('.ai-btn');
+    if (btn && !btn.contains(e.relatedTarget)) hideBarTooltip();
+  });
+  $('aiEngines').addEventListener('scroll', hideBarTooltip);
 
   // ═══════════ COMMAND PALETTE ═══════════
   const cmdk = $('cmdk');
@@ -4675,6 +4840,12 @@
     h += widgetToggleRow('seconds', 'Seconds in clock', 'show seconds');
     h += widgetToggleRow('deadline', 'Deadline badge', 'urgent task card beside clock');
     h += widgetToggleRow('idleDim', 'Idle dim', 'dim screen after 60s idle');
+    h += '<div class="toggle-row"><div class="toggle-row-label">Interface density <small>spacing of tiles and layout</small></div>';
+    h += '<select id="setDensity" style="background:var(--bg-3);border:1px solid var(--border-strong);color:var(--fg);padding:0.4rem 0.6rem;border-radius:4px;font-family:var(--mono);font-size:0.8rem;">';
+    [['compact', 'Compact'], ['cozy', 'Cozy'], ['spacious', 'Spacious']].forEach(([v, n]) => {
+      h += '<option value="' + v + '"' + ((settings.density || 'cozy') === v ? ' selected' : '') + '>' + n + '</option>';
+    });
+    h += '</select></div>';
     h += '</div>';
 
     // Workspace view
@@ -4803,6 +4974,12 @@
       cols.value = v;
       save(WS_KEY, workspaces);
       renderGrid();
+    });
+    const dens = $('setDensity');
+    if (dens) dens.addEventListener('change', () => {
+      settings.density = dens.value;
+      save(SETTINGS_KEY, settings);
+      applyDensity();
     });
 
     // themes
@@ -5149,6 +5326,7 @@
   buildIconGrid();
   buildColorPalette();
   applyTheme();
+  applyDensity();
   applyBg();
   loadBgImage();
   renderWsTabs();
