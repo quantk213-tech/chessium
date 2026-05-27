@@ -346,13 +346,23 @@
       -webkit-backdrop-filter: none;
     }
 
+    /* ─── VAULT ─── */
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+    .shake { animation: shake 0.35s ease; }
+    .ws-vault { border-left: 2px solid var(--accent); }
+    .hbg-opt.active { outline: 2px solid var(--accent-bright); outline-offset: 1px; }
+
     /* ─── STAGGER TILE APPEARANCE ─── */
     @keyframes tileFadeIn {
-      from { opacity: 0; transform: translateY(10px); }
+      from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    .grid .tile {
-      animation: tileFadeIn 0.3s ease both;
+    .grid.stagger-in .tile {
+      animation: tileFadeIn 0.15s ease both;
     }
 
     /* ─── VIEW MODES ─── */
@@ -634,7 +644,24 @@
       border-radius: 0;
       padding: 0.3rem 0.2rem;
     }
-    .tile-header:hover { background: transparent; transform: none; border-color: var(--tile-color, var(--accent)); }
+    .tile-header[data-hbg="dark"] {
+      background: rgba(0,0,0,0.45);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      padding: 0.6rem 1rem;
+    }
+    .tile-header[data-hbg="light"] {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 0.6rem 1rem;
+    }
+    .tile-header[data-hbg="color"] {
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      padding: 0.6rem 1rem;
+    }
+    .tile-header:hover { transform: none; }
     .ct-header-text {
       font-family: var(--display); font-size: 1.1rem;
       letter-spacing: 0.04em;
@@ -2163,6 +2190,20 @@
   <!-- CONTEXT MENU -->
   <div class="ctx-menu" id="ctxMenu"></div>
 
+  <!-- VAULT PIN MODAL -->
+  <div class="modal-backdrop" id="vaultBackdrop">
+    <div class="modal" style="max-width:320px;text-align:center;">
+      <h2 style="margin-bottom:0.3rem;">Vault</h2>
+      <small style="color:var(--fg-dim);display:block;margin-bottom:1.2rem;">enter PIN to unlock hidden workspace</small>
+      <input type="password" id="vaultPinInput" maxlength="20" placeholder="PIN" autocomplete="off"
+        style="text-align:center;font-size:1.4rem;letter-spacing:0.4em;width:100%;">
+      <div class="modal-actions" style="margin-top:1rem;">
+        <button class="btn" id="vaultCancel">cancel</button>
+        <button class="btn btn-primary" id="vaultUnlock">unlock</button>
+      </div>
+    </div>
+  </div>
+
   <!-- CONTENT TILE MODAL (note/checklist/header/snippet) — body filled in JS -->
   <div class="modal-backdrop" id="contentBackdrop">
     <div class="modal">
@@ -2544,6 +2585,14 @@
   });
   if (workspaces.length === 0) workspaces = [{ id: 'base', name: 'BASE', viewMode: 'grid', cols: 4 }];
   if (!workspaces.find(w => w.id === settings.activeWs)) settings.activeWs = workspaces[0].id;
+  // if active ws is hidden (vault), redirect to first normal ws on load (vault needs PIN)
+  (function() {
+    const aw = workspaces.find(w => w.id === settings.activeWs);
+    if (aw && aw.hidden) {
+      const norm = workspaces.find(w => !w.hidden);
+      if (norm) settings.activeWs = norm.id;
+    }
+  })();
 
   // ═══════════ TILE DATA MODEL ═══════════
   // Every tile has an explicit `kind`. Legacy tiles are migrated on load.
@@ -2609,6 +2658,7 @@
   })();
 
   let currentFolder = null;
+  let vaultUnlocked = false; // true when hidden workspace is unlocked this session
   let editingId = null;
   let editingType = 'bookmark';
   let selectedIcon = 'link';
@@ -2790,12 +2840,10 @@
   function activeWs() { return workspaces.find(w => w.id === settings.activeWs) || workspaces[0]; }
   // Brief fade+slide when the grid content swaps (workspace switch).
   function animateGridSwap() {
-    requestAnimationFrame(() => {
-      grid.classList.remove('grid-swap');
-      // force reflow so the animation restarts even on rapid switches
-      void grid.offsetWidth;
-      grid.classList.add('grid-swap');
-    });
+    grid.classList.remove('grid-swap', 'stagger-in');
+    void grid.offsetWidth;
+    grid.classList.add('grid-swap', 'stagger-in');
+    setTimeout(() => grid.classList.remove('stagger-in'), 800);
   }
 
   function renderWsTabs() {
@@ -2832,8 +2880,10 @@
     }
     const frag = document.createDocumentFragment();
     workspaces.forEach(ws => {
+      // hidden workspaces only show if vault is unlocked and active
+      if (ws.hidden && !(vaultUnlocked && settings.activeWs === ws.id)) return;
       const btn = document.createElement('button');
-      btn.className = 'ws-tab' + (settings.activeWs === ws.id ? ' active' : '');
+      btn.className = 'ws-tab' + (settings.activeWs === ws.id ? ' active' : '') + (ws.hidden ? ' ws-vault' : '');
       btn.dataset.wsId = ws.id;
       btn.draggable = true;
       const count = bookmarks.filter(b => !b.parent && b.ws === ws.id).length;
@@ -2956,7 +3006,7 @@
     const frag = document.createDocumentFragment();
     items.forEach((b, i) => {
       const t = makeTile(b);
-      t.style.animationDelay = (i * 0.03) + 's';
+      if (grid.classList.contains('stagger-in')) t.style.animationDelay = (i * 0.02) + 's';
       frag.appendChild(t);
     });
 
@@ -3002,7 +3052,7 @@
     });
     ordered.forEach((b, i) => {
       const tile = makeTile(b);
-      tile.style.animationDelay = (i * 0.03) + 's';
+      if (grid.classList.contains('stagger-in')) tile.style.animationDelay = (i * 0.02) + 's';
       const bd = b.board || { x: 0, y: 0, w: 2, h: 2 };
       tile.classList.add('board-tile');
       tile.draggable = false; // board uses pointer-drag, not HTML5 DnD
@@ -3082,6 +3132,14 @@
         '<div class="ct-note-body">' + escapeHtml(b.text || '').replace(/\n/g, '<br>') + '</div>';
     } else if (kind === 'header') {
       tile.innerHTML = '<div class="ct-header-text">' + escapeHtml(b.name || 'Section') + '</div>';
+      if (b.headerBg) {
+        if (b.headerBg === 'dark' || b.headerBg === 'light') {
+          tile.dataset.hbg = b.headerBg;
+        } else {
+          tile.dataset.hbg = 'color';
+          tile.style.background = b.headerBg + '55'; // hex + alpha
+        }
+      }
     } else if (kind === 'snippet') {
       tile.innerHTML =
         '<div class="ct-snippet-head">' +
@@ -3803,6 +3861,15 @@
     let h = '';
     if (kind === 'header') {
       h += '<div class="field"><label>section title</label><input type="text" id="cfName" maxlength="60" placeholder="— Production —"></div>';
+      const hbg = (b && b.headerBg) || '';
+      h += '<div class="field"><label>header background</label><div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">';
+      h += '<button class="btn btn-small hbg-opt' + (!hbg ? ' active' : '') + '" data-hbg="">none</button>';
+      h += '<button class="btn btn-small hbg-opt' + (hbg === 'dark' ? ' active' : '') + '" data-hbg="dark" style="background:rgba(0,0,0,0.45);border-color:rgba(255,255,255,0.1);">dark</button>';
+      h += '<button class="btn btn-small hbg-opt' + (hbg === 'light' ? ' active' : '') + '" data-hbg="light" style="background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.15);">light</button>';
+      h += '<label class="btn btn-small hbg-opt' + (hbg && hbg !== 'dark' && hbg !== 'light' ? ' active' : '') + '" data-hbg="custom"' +
+        (hbg && hbg !== 'dark' && hbg !== 'light' ? ' style="background:' + hbg + '55;"' : '') +
+        '>color <input type="color" id="cfHeaderColor" value="' + (hbg && hbg !== 'dark' && hbg !== 'light' ? hbg : '#5e81ac') + '" style="width:20px;height:20px;padding:0;border:none;cursor:pointer;vertical-align:middle;margin-left:4px;"></label>';
+      h += '</div></div>';
     } else if (kind === 'note') {
       h += '<div class="field"><label>title</label><input type="text" id="cfName" maxlength="60" placeholder="Note"></div>';
       h += '<div class="field"><label>text</label><textarea id="cfText" rows="6" placeholder="write anything…"></textarea></div>';
@@ -3838,6 +3905,7 @@
     }
   }
   let contentColor = null;
+  let contentHeaderBg = '';
   function buildContentColorPalette(current) {
     contentColor = current || null;
     const pal = $('cfColorPalette');
@@ -3895,9 +3963,31 @@
     contentKind = kind;
     contentEditId = editId || null;
     const b = editId ? bookmarks.find(x => x.id === editId) : null;
+    contentHeaderBg = (b && b.headerBg) || '';
     $('contentTitle').textContent = (editId ? 'Edit ' : 'New ') + CONTENT_LABELS[kind].toLowerCase();
     buildContentModal(kind, b);
     $('contentDelete').style.display = editId ? 'inline-block' : 'none';
+    // wire header bg buttons
+    contentBody.querySelectorAll('.hbg-opt').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const v = btn.dataset.hbg;
+        if (v === 'custom') {
+          contentHeaderBg = ($('cfHeaderColor') || {}).value || '#5e81ac';
+        } else {
+          contentHeaderBg = v;
+        }
+        contentBody.querySelectorAll('.hbg-opt').forEach(x => x.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+    const hcInp = $('cfHeaderColor');
+    if (hcInp) hcInp.addEventListener('input', () => {
+      contentHeaderBg = hcInp.value;
+      const customBtn = contentBody.querySelector('[data-hbg="custom"]');
+      if (customBtn) { customBtn.style.background = hcInp.value + '55'; customBtn.classList.add('active'); }
+      contentBody.querySelectorAll('.hbg-opt:not([data-hbg="custom"])').forEach(x => x.classList.remove('active'));
+    });
     contentBackdrop.classList.add('active');
     setTimeout(() => { const f = $('cfName'); if (f) f.focus(); }, 50);
   }
@@ -3920,12 +4010,14 @@
       b.ws = wsId;
       if (contentKind === 'note' || contentKind === 'snippet') b.text = text;
       if (contentKind === 'checklist') b.items = contentChecklist.filter(it => it.text.trim());
+      if (contentKind === 'header') b.headerBg = contentHeaderBg || '';
       showToast('updated');
     } else {
       const nb = { id: uid(), kind: contentKind, name: name, color: contentColor,
         ws: wsId, parent: currentFolder };
       if (contentKind === 'note' || contentKind === 'snippet') nb.text = text;
       if (contentKind === 'checklist') nb.items = contentChecklist.filter(it => it.text.trim());
+      if (contentKind === 'header') nb.headerBg = contentHeaderBg || '';
       bookmarks.push(nb);
       showToast(CONTENT_LABELS[contentKind] + ' added');
     }
@@ -5313,6 +5405,38 @@
       });
       row.appendChild(moveBox);
       row.appendChild(name);
+      // vault (hidden) toggle + PIN
+      const vaultWrap = document.createElement('div');
+      vaultWrap.style.cssText = 'display:flex;align-items:center;gap:0.4rem;margin-left:auto;';
+      const hiddenLbl = document.createElement('label');
+      hiddenLbl.style.cssText = 'font-size:0.7rem;color:var(--fg-dim);display:flex;align-items:center;gap:0.3rem;cursor:pointer;';
+      const hiddenCb = document.createElement('input');
+      hiddenCb.type = 'checkbox';
+      hiddenCb.checked = !!w.hidden;
+      hiddenCb.style.cssText = 'accent-color:var(--accent-bright);';
+      hiddenCb.addEventListener('change', () => {
+        // only one workspace can be hidden at a time
+        if (hiddenCb.checked) workspaces.forEach(ws => { ws.hidden = false; });
+        w.hidden = hiddenCb.checked;
+        if (w.hidden && !w.pin) w.pin = '0000';
+        save(WS_KEY, workspaces);
+        renderWsSettings();
+        renderWsTabs();
+      });
+      hiddenLbl.appendChild(hiddenCb);
+      hiddenLbl.appendChild(document.createTextNode('vault'));
+      vaultWrap.appendChild(hiddenLbl);
+      if (w.hidden) {
+        const pinInp = document.createElement('input');
+        pinInp.type = 'text';
+        pinInp.value = w.pin || '';
+        pinInp.placeholder = 'PIN';
+        pinInp.maxLength = 20;
+        pinInp.style.cssText = 'width:70px;font-size:0.75rem;text-align:center;';
+        pinInp.addEventListener('input', () => { w.pin = pinInp.value; save(WS_KEY, workspaces); });
+        vaultWrap.appendChild(pinInp);
+      }
+      row.appendChild(vaultWrap);
       row.appendChild(del);
       wrap.appendChild(row);
     });
@@ -5390,9 +5514,16 @@
       if (settings.widgets.aibar) aibar.classList.toggle('hidden');
       return;
     }
+    // Ctrl+Y → vault (hidden workspace)
+    if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') {
+      e.preventDefault();
+      if (vaultUnlocked) { lockVault(); } else { openVaultModal(); }
+      return;
+    }
     // Escape → close topmost
     if (e.key === 'Escape') {
-      if (ctxMenu.classList.contains('active')) closeCtxMenu();
+      if ($('vaultBackdrop').classList.contains('active')) closeVaultModal();
+      else if (ctxMenu.classList.contains('active')) closeCtxMenu();
       else if (modalBackdrop.classList.contains('active')) closeModal();
       else if (settingsBackdrop.classList.contains('active')) closeSettings();
       else if (notesBackdrop.classList.contains('active')) closeNotes();
@@ -5413,6 +5544,7 @@
   loadBgImage();
   renderWsTabs();
   renderGrid();
+  animateGridSwap();
   renderTodos();
   renderSearchBar();
   applyWidgetVisibility();
@@ -5429,6 +5561,59 @@
   if (settings.sync && settings.sync.autoPull && settings.sync.token && settings.sync.gistId) {
     setTimeout(() => { syncPull(); }, 800);
   }
+
+  // ═══════════ VAULT (hidden workspace) ═══════════
+  function getVaultWs() {
+    return workspaces.find(w => w.hidden);
+  }
+  function openVaultModal() {
+    const vw = getVaultWs();
+    if (!vw) { showToast('no hidden workspace — mark one as hidden in workspace settings'); return; }
+    $('vaultPinInput').value = '';
+    $('vaultBackdrop').classList.add('active');
+    setTimeout(() => $('vaultPinInput').focus(), 50);
+  }
+  function closeVaultModal() {
+    $('vaultBackdrop').classList.remove('active');
+  }
+  function unlockVault() {
+    const vw = getVaultWs();
+    if (!vw) return;
+    const pin = $('vaultPinInput').value;
+    if (!pin) return;
+    if (pin !== (vw.pin || '')) {
+      $('vaultPinInput').classList.add('shake');
+      setTimeout(() => $('vaultPinInput').classList.remove('shake'), 400);
+      showToast('wrong PIN', 'error');
+      return;
+    }
+    vaultUnlocked = true;
+    settings.activeWs = vw.id;
+    save(SETTINGS_KEY, settings);
+    currentFolder = null;
+    closeVaultModal();
+    renderWsTabs();
+    renderGrid();
+    animateGridSwap();
+    showToast('vault unlocked');
+  }
+  function lockVault() {
+    vaultUnlocked = false;
+    const firstNormal = workspaces.find(w => !w.hidden);
+    if (firstNormal) {
+      settings.activeWs = firstNormal.id;
+      save(SETTINGS_KEY, settings);
+    }
+    currentFolder = null;
+    renderWsTabs();
+    renderGrid();
+    animateGridSwap();
+    showToast('vault locked');
+  }
+  $('vaultCancel').addEventListener('click', closeVaultModal);
+  $('vaultBackdrop').addEventListener('click', (e) => { if (e.target === $('vaultBackdrop')) closeVaultModal(); });
+  $('vaultUnlock').addEventListener('click', unlockVault);
+  $('vaultPinInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') unlockVault(); });
 
   // ═══════════ PWA ═══════════
   // Offline support was removed — the service worker caused ERR_FAILED crashes.
