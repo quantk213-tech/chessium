@@ -2239,7 +2239,7 @@
   <!-- COMMAND PALETTE -->
   <div class="cmdk" id="cmdk">
     <div class="cmdk-box">
-      <input type="text" id="cmdkInput" placeholder="search bookmarks, notes, commands…" autocomplete="off">
+      <input type="text" id="cmdkInput" placeholder="search tiles, notes, commands… or just start typing" autocomplete="off">
       <div class="cmdk-list" id="cmdkList"></div>
     </div>
   </div>
@@ -4560,10 +4560,20 @@
       };
       cmdkItems.push(Object.assign({ type: 'link' }, map[cmd], { queryHint: '"' + term + '"' }));
     }
-    // bookmarks
-    bookmarks.filter(b => !b.tool && !b.type).forEach(b => {
-      const hay = (b.name + ' ' + (b.label || '') + ' ' + (b.url || '')).toLowerCase();
-      if (!q || hay.includes(q)) cmdkItems.push({ type: 'link', name: b.name, url: b.url, icon: b.icon || 'link', hint: b.label || '' });
+    // all tiles across all workspaces
+    bookmarks.forEach(b => {
+      const kind = tileKind(b);
+      const hay = ((b.name || '') + ' ' + (b.label || '') + ' ' + (b.url || '') + ' ' + (b.text || '')).toLowerCase();
+      if (!q || hay.includes(q)) {
+        const wsObj = workspaces.find(w => w.id === b.ws);
+        const wsName = (wsObj && wsObj.name) || '';
+        let hint = kind;
+        if (b.label) hint = b.label;
+        if (wsName && workspaces.length > 1) hint += ' · ' + wsName;
+        const it = { type: kind === 'link' ? 'link' : 'tile', name: b.name || 'Unnamed', icon: b.icon || 'link', hint: hint, tileId: b.id };
+        if (b.url) it.url = b.url;
+        cmdkItems.push(it);
+      }
     });
     // notes
     if (q) {
@@ -4576,6 +4586,10 @@
     const cmds = [
       { name: 'Add bookmark', action: 'add-bookmark', icon: 'link', hint: 'cmd' },
       { name: 'Add folder', action: 'add-folder', icon: 'folder', hint: 'cmd' },
+      { name: 'Add note', action: 'add-note', icon: 'file', hint: 'cmd' },
+      { name: 'Add checklist', action: 'add-checklist', icon: 'box', hint: 'cmd' },
+      { name: 'Add header', action: 'add-header', icon: 'bar', hint: 'cmd' },
+      { name: 'Add snippet', action: 'add-snippet', icon: 'terminal', hint: 'cmd' },
       { name: 'Open settings', action: 'settings', icon: 'settings', hint: 'cmd' },
       { name: 'Open notes', action: 'notes', icon: 'file', hint: 'cmd' },
       { name: 'Open tasks', action: 'tasks', icon: 'list', hint: 'cmd' },
@@ -4614,10 +4628,34 @@
     if (!it) return;
     closeCmdk();
     if (it.type === 'link') openLink(it.url);
+    else if (it.type === 'tile') {
+      // navigate to the tile's workspace
+      const b = bookmarks.find(x => x.id === it.tileId);
+      if (b) {
+        if (b.ws !== settings.activeWs) {
+          settings.activeWs = b.ws;
+          save(SETTINGS_KEY, settings);
+          currentFolder = null;
+          renderWsTabs();
+          renderGrid();
+          animateGridSwap();
+        }
+        const kind = tileKind(b);
+        if (kind === 'snippet' && b.text) {
+          navigator.clipboard.writeText(b.text).then(() => showToast('copied: ' + b.name)).catch(() => {});
+        } else if (kind === 'link' && b.url) {
+          openLink(b.url);
+        }
+      }
+    }
     else if (it.type === 'note') { openNotes(); selectNote(it.noteId); }
     else if (it.type === 'cmd') {
       if (it.action === 'add-bookmark') openAddModal('bookmark');
       else if (it.action === 'add-folder') openAddModal('folder');
+      else if (it.action === 'add-note') openContentModal('note');
+      else if (it.action === 'add-checklist') openContentModal('checklist');
+      else if (it.action === 'add-header') openContentModal('header');
+      else if (it.action === 'add-snippet') openContentModal('snippet');
       else if (it.action === 'settings') openSettings();
       else if (it.action === 'notes') openNotes();
       else if (it.action === 'tasks') todoPanel.classList.add('open');
@@ -4726,18 +4764,35 @@
   }
   function collectData() {
     return {
-      _meta: { savedAt: Date.now(), app: 'chessium-console', version: 5 },
+      _meta: { savedAt: Date.now(), app: 'chessium-console', version: 6, format: 'full-backup' },
       bookmarks: bookmarks,
       workspaces: workspaces,
       settings: settings,
       notes: notes,
-      todos: todos
+      todos: todos,
+      bgMeta: load(BG_KEY, null)
     };
   }
   // applyImportedData: applies a backup. preserveSync=true keeps local sync creds
   // (used by pull, so a backup with stale/empty token doesn't kill syncing).
   function applyImportedData(data, preserveSync) {
     const keepSync = preserveSync ? Object.assign({}, settings.sync) : null;
+
+    // --- handle legacy formats ---
+    // old v3/v4 export was a raw array of bookmarks
+    if (Array.isArray(data)) { data = { bookmarks: data }; }
+    // old single-key dumps (e.g. { sysadmin_data_v5: [...], sysadmin_settings_v3: {...} })
+    if (data.sysadmin_data_v5 || data.sysadmin_data_v4 || data.sysadmin_data_v3) {
+      const rawBookmarks = data.sysadmin_data_v5 || data.sysadmin_data_v4 || data.sysadmin_data_v3;
+      data = {
+        bookmarks: rawBookmarks,
+        workspaces: data.sysadmin_workspaces_v2 || data.sysadmin_workspaces_v1,
+        settings: data.sysadmin_settings_v3 || data.sysadmin_settings_v2,
+        notes: data.sysadmin_notes_v2 || data.sysadmin_notes_v1,
+        todos: data.sysadmin_todo_v3 || data.sysadmin_todo_v2
+      };
+    }
+
     if (data.bookmarks) { bookmarks = data.bookmarks; save(DATA_KEY, bookmarks); }
     if (data.workspaces) {
       workspaces = data.workspaces;
@@ -4751,9 +4806,21 @@
     }
     if (data.notes) { notes = data.notes; save(NOTES_KEY, notes); }
     if (data.todos) { todos = data.todos; save(TODO_KEY, todos); }
+    if (data.bgMeta) { save(BG_KEY, data.bgMeta); bgData = data.bgMeta; }
+
+    // stamp kind on any imported tiles that lack it
+    let kindChanged = false;
+    bookmarks.forEach(b => {
+      if (!b.kind || TILE_KINDS.indexOf(b.kind) === -1) { b.kind = tileKind(b); kindChanged = true; }
+    });
+    if (kindChanged) save(DATA_KEY, bookmarks);
+
     if (!workspaces.find(w => w.id === settings.activeWs)) settings.activeWs = workspaces[0].id;
     applyTheme();
+    applyDensity();
+    applyGlass();
     applyBg();
+    loadBgImage();
     renderWsTabs();
     renderGrid();
     renderTodos();
@@ -5478,7 +5545,9 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'chessium-console-backup.json';
+    const d = new Date();
+    const ts = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    a.download = 'chessium-backup-' + ts + '.json';
     a.click();
     URL.revokeObjectURL(url);
     showToast('exported');
@@ -5491,9 +5560,8 @@
     r.onload = () => {
       try {
         const data = JSON.parse(r.result);
-        if (!confirm('Import? Current data will be replaced.')) return;
-        if (Array.isArray(data)) { bookmarks = data; save(DATA_KEY, bookmarks); renderWsTabs(); renderGrid(); }
-        else applyImportedData(data, true);
+        if (!confirm('Import this backup? Current data will be replaced.')) return;
+        applyImportedData(data, true);
         showToast('imported', 'success');
       } catch { showToast('invalid file', 'error'); }
     };
@@ -5554,6 +5622,21 @@
       else if (phoneBackdrop.classList.contains('active')) closePhone();
       else if (cmdk.classList.contains('active')) closeCmdk();
       else if (todoPanel.classList.contains('open')) todoPanel.classList.remove('open');
+    }
+    // typing a printable character on the main screen → open command palette
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const active = document.activeElement;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
+      if (cmdk.classList.contains('active')) return;
+      // don't hijack if any modal/panel is open
+      if (modalBackdrop.classList.contains('active') || settingsBackdrop.classList.contains('active') ||
+          notesBackdrop.classList.contains('active') || passBackdrop.classList.contains('active') ||
+          phoneBackdrop.classList.contains('active') || contentBackdrop.classList.contains('active') ||
+          $('vaultBackdrop').classList.contains('active')) return;
+      openCmdk();
+      cmdkInput.value = e.key;
+      renderCmdk(e.key);
+      e.preventDefault();
     }
   });
 
