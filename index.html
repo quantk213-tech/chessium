@@ -524,18 +524,7 @@
     .board-tile.board-moving { cursor: grabbing; z-index: 10; opacity: 0.85; }
     .board-tile.board-resizing { z-index: 10; outline: 1px dashed var(--accent-bright); }
     .grid.view-board .board-tile { cursor: grab; }
-    /* snap guides — alignment lines shown while dragging */
-    .snap-guides {
-      position: absolute; inset: 0;
-      pointer-events: none; z-index: 9;
-    }
-    .snap-guide {
-      position: absolute;
-      background: var(--accent-bright);
-      box-shadow: 0 0 4px var(--accent-bright);
-    }
-    .snap-guide-x { top: 0; bottom: 0; width: 2px; margin-left: -1px; }
-    .snap-guide-y { left: 0; right: 0; height: 2px; margin-top: -1px; }
+    .grid.view-board.board-locked .board-tile { cursor: default; }
 
     /* adaptive board tiles — hide detail as the tile shrinks */
     .board-tile[data-bw="xs"] .tile-name,
@@ -2274,11 +2263,86 @@
     bug: '<rect x="8" y="6" width="8" height="14" rx="4"/><path d="M19 7l-3 2M5 7l3 2M19 13h-3M5 13h3M19 19l-3-2M5 19l3-2M12 2v4"/>',
     rocket: '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09zM12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/>',
     coffee: '<path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8zM6 1v3M10 1v3M14 1v3"/>',
-    pin: '<path d="M12 17v5M9 10.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24V16a1 1 0 001 1h12a1 1 0 001-1v-.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V7a1 1 0 011-1 2 2 0 000-4H8a2 2 0 000 4 1 1 0 011 1z"/>'
+    pin: '<path d="M12 17v5M9 10.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24V16a1 1 0 001 1h12a1 1 0 001-1v-.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V7a1 1 0 011-1 2 2 0 000-4H8a2 2 0 000 4 1 1 0 011 1z"/>',
+    // ─── extra set ───
+    search: '<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>',
+    edit: '<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+    trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>',
+    plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+    minus: '<line x1="5" y1="12" x2="19" y2="12"/>',
+    check: '<polyline points="20 6 9 17 4 12"/>',
+    x: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+    info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+    alert: '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    help: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    power: '<path d="M18.36 6.64a9 9 0 11-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>',
+    wrench: '<path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4l-2.7 2.7-2-2 2.7-2.7z"/>',
+    tool: '<path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4l-2.7 2.7-2-2 2.7-2.7z"/>',
+    sliders: '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+    filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+    hash: '<line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/>',
+    at: '<circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 006 0v-1a10 10 0 10-3.92 7.94"/>',
+    wallet: '<path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4z"/>',
+    dollar: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>',
+    bitcoin: '<circle cx="12" cy="12" r="10"/><path d="M9 8h5a2.5 2.5 0 010 5H9zm0 5h5.5a2.5 2.5 0 010 5H9zm0-5V6m0 12v-2m3-10v2m0 10v2"/>',
+    bank: '<path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"/>',
+    trending: '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
+    pie: '<path d="M21.21 15.89A10 10 0 118 2.83"/><path d="M22 12A10 10 0 0012 2v10z"/>',
+    zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+    wifi_off: '<line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0119 12.55M5 12.55a10.94 10.94 0 015.17-2.39M10.71 5.05A16 16 0 0122.58 9M1.42 9a15.91 15.91 0 014.7-2.88M8.53 16.11a6 6 0 016.95 0M12 20h.01"/>',
+    database2: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>',
+    hard_drive: '<line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/>',
+    server2: '<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>',
+    cloud_off: '<path d="M22.61 16.95A5 5 0 0018 10h-1.26a8 8 0 00-7.05-6M5 5a8 8 0 004 15h9a5 5 0 001.7-.3"/><line x1="1" y1="1" x2="23" y2="23"/>',
+    shield_check: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>',
+    fingerprint: '<path d="M12 11a2 2 0 012 2c0 3-1 5-1 5M8 11a4 4 0 018 0c0 5-2 8-2 8M4 11a8 8 0 0116 0c0 1 0 2-.5 4M12 3a8 8 0 00-8 8M6 19c1-2 1.5-4 1.5-7a4.5 4.5 0 019 0"/>',
+    eye_off: '<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19M14.12 14.12a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>',
+    bell_off: '<path d="M13.73 21a2 2 0 01-3.46 0M18.63 13A17.89 17.89 0 0118 8M6.26 6.26A5.86 5.86 0 006 8c0 7-3 9-3 9h14M18 8a6 6 0 00-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/>',
+    flag: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
+    save: '<path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+    copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>',
+    clipboard: '<path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/>',
+    archive: '<polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>',
+    folder_open: '<path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2v1"/><path d="M2 13l2-6h18l-2 6"/>',
+    paperclip: '<path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>',
+    external: '<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
+    arrow_right: '<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
+    chevron_right: '<polyline points="9 18 15 12 9 6"/>',
+    play: '<polygon points="5 3 19 12 5 21 5 3"/>',
+    pause: '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>',
+    timer: '<line x1="10" y1="2" x2="14" y2="2"/><line x1="12" y1="14" x2="15" y2="11"/><circle cx="12" cy="14" r="8"/>',
+    sun: '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>',
+    moon: '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>',
+    droplet: '<path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z"/>',
+    thermometer: '<path d="M14 14.76V3.5a2.5 2.5 0 00-5 0v11.26a4.5 4.5 0 105 0z"/>',
+    mappin: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>',
+    navigation: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
+    truck: '<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
+    cube: '<path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+    command: '<path d="M18 3a3 3 0 00-3 3v12a3 3 0 003 3 3 3 0 003-3 3 3 0 00-3-3H6a3 3 0 00-3 3 3 3 0 003 3 3 3 0 003-3V6a3 3 0 00-3-3 3 3 0 00-3 3 3 3 0 003 3h12a3 3 0 003-3 3 3 0 00-3-3z"/>',
+    cursor: '<path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>',
+    layout: '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>',
+    maximize: '<path d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3M16 21h3a2 2 0 002-2v-3"/>',
+    type: '<polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>',
+    anchor: '<circle cx="12" cy="5" r="3"/><line x1="12" y1="22" x2="12" y2="8"/><path d="M5 12H2a10 10 0 0020 0h-3"/>',
+    feather: '<path d="M20.24 12.24a6 6 0 00-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/>',
+    git_branch: '<line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 01-9 9"/>',
+    git_merge: '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 009 9"/>'
   };
   function iconSvg(name, cls) {
     const p = ICONS[name] || ICONS.link;
     return '<svg class="' + (cls === undefined ? 'tile-icon' : cls) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>';
+  }
+  // Open a bookmark link, honouring the linkTarget setting.
+  // bg = caller wants a background tab (ctrl/middle-click) — only applies to new-tab mode.
+  function openLink(url, bg) {
+    if (!url) return;
+    if (settings.linkTarget === 'same' && !bg) {
+      window.location.href = url;
+      return;
+    }
+    const w = window.open(url, '_blank', 'noopener');
+    if (bg && w) { try { w.blur(); window.focus(); } catch {} }
   }
   // Favicon URL for a site, via Google's favicon service.
   function faviconUrl(siteUrl) {
@@ -2332,7 +2396,9 @@
     weatherCity: { name: 'Kyiv', lat: 50.45, lon: 30.52 },
     sync: { gistId: '', token: '', lastSync: 0, autoPull: false, autoPush: false },
     searchBar: { engines: ['google', 'ddg'] },
-    density: 'cozy'
+    density: 'cozy',
+    boardLocked: false,
+    linkTarget: 'new'
   };
   const DEFAULT_WORKSPACES = [{ id: 'base', name: 'BASE', viewMode: 'grid', cols: 4 }];
   const DEFAULT_BOOKMARKS = [{ id: 't-notes', kind: 'tool', label: 'tool', name: 'Notes', tool: 'notes', icon: 'file', ws: 'base', parent: null }];
@@ -2839,7 +2905,8 @@
   function renderGridNow() {
     const ws = activeWs();
     const viewMode = ws.viewMode || 'grid';
-    grid.className = 'grid view-' + viewMode;
+    grid.className = 'grid view-' + viewMode +
+      (viewMode === 'board' && settings.boardLocked ? ' board-locked' : '');
     grid.style.setProperty('--cols', ws.cols || 4);
 
     const items = getVisibleBookmarks();
@@ -2929,8 +2996,8 @@
     if (b.color) tile.style.setProperty('--tile-color', b.color);
     if (!isTool && !isFolder) {
       tile.href = b.url;
-      tile.target = '_blank';
       tile.rel = 'noopener';
+      if (settings.linkTarget !== 'same') tile.target = '_blank';
     }
     tile.draggable = true;
     let host;
@@ -3089,13 +3156,11 @@
       openTool(b.tool);
     } else if (b.url) {
       const bg = e.ctrlKey || e.metaKey || e.button === 1;
-      // In board view the pointer-drag cancels native <a> navigation, so we must
-      // open the link in JS. In other views the native <a> handles a plain click
-      // (incl. ctrl+click background tabs) — only intervene for board.
+      // In board view the pointer-drag cancels native <a> navigation, so we open
+      // the link in JS. In other views the native <a> handles a plain click.
       if (isBoardMode()) {
         e.preventDefault();
-        const w = window.open(b.url, '_blank', 'noopener');
-        if (bg && w) { try { w.blur(); window.focus(); } catch {} }
+        openLink(b.url, bg);
       }
     }
   });
@@ -3108,8 +3173,7 @@
     const b = bookmarks.find(x => x.id === tile.dataset.id);
     if (!b || !b.url) return;
     e.preventDefault();
-    const w = window.open(b.url, '_blank', 'noopener');
-    if (w) { try { w.blur(); window.focus(); } catch {} }
+    openLink(b.url, true);
   });
   function deleteBookmark(b) {
     const isFolder = b.type === 'folder';
@@ -3190,58 +3254,6 @@
     return ws && ws.viewMode === 'board' && !currentFolder &&
       !window.matchMedia('(max-width: 720px)').matches;
   }
-  // Snap a dragged tile's candidate position to align flush with neighbour edges.
-  // Returns adjusted {x, y} plus guide lines to draw.
-  function snapToNeighbors(x, y, w, h, dragId) {
-    const TOL = 1; // cells: snap when within this distance of an alignment
-    const others = bookmarks.filter(b =>
-      b.id !== dragId && !b.parent && b.ws === settings.activeWs &&
-      b.board && typeof b.board.x === 'number');
-    let bestX = null, bestXDist = TOL + 0.01, guideX = null;
-    let bestY = null, bestYDist = TOL + 0.01, guideY = null;
-    // candidate X alignments: my left↔their left, my left↔their right,
-    // my right↔their right, my right↔their left
-    others.forEach(b => {
-      const oL = b.board.x, oR = b.board.x + b.board.w;
-      [[oL, oL], [oR - w, oR], [oR - w, oR], [oL - w, oL]].forEach(([cx, line]) => {
-        if (cx < 0 || cx + w > 12) return;
-        const d = Math.abs(x - cx);
-        if (d < bestXDist) { bestXDist = d; bestX = cx; guideX = line; }
-      });
-      const oT = b.board.y, oB = b.board.y + b.board.h;
-      [[oT, oT], [oB - h, oB], [oT - h, oT]].forEach(([cy, line]) => {
-        if (cy < 0) return;
-        const d = Math.abs(y - cy);
-        if (d < bestYDist) { bestYDist = d; bestY = cy; guideY = line; }
-      });
-    });
-    const guides = [];
-    if (bestX !== null) { x = bestX; guides.push({ axis: 'x', at: guideX }); }
-    if (bestY !== null) { y = bestY; guides.push({ axis: 'y', at: guideY }); }
-    return { x: x, y: y, guides: guides };
-  }
-  function showSnapGuides(guides) {
-    let layer = grid.querySelector('.snap-guides');
-    if (!layer) {
-      layer = document.createElement('div');
-      layer.className = 'snap-guides';
-      grid.appendChild(layer);
-    }
-    layer.innerHTML = '';
-    if (!guides || !guides.length) return;
-    const m = boardCellMetrics();
-    guides.forEach(g => {
-      const el = document.createElement('div');
-      el.className = 'snap-guide snap-guide-' + g.axis;
-      if (g.axis === 'x') el.style.left = (g.at * m.cellW) + 'px';
-      else el.style.top = (g.at * m.cellH) + 'px';
-      layer.appendChild(el);
-    });
-  }
-  function clearSnapGuides() {
-    const layer = grid.querySelector('.snap-guides');
-    if (layer) layer.innerHTML = '';
-  }
   grid.addEventListener('pointerdown', (e) => {
     if (!isBoardMode() || e.button !== 0) return;
     const tile = e.target.closest('.board-tile');
@@ -3254,6 +3266,8 @@
     const b = bookmarks.find(x => x.id === tile.dataset.id);
     if (!b || !b.board) return;
     const onHandle = !!e.target.closest('.board-resize');
+    // when the board is locked, tiles only move/resize with Shift held
+    if (settings.boardLocked && !e.shiftKey) return;
     const m = boardCellMetrics();
     boardOp = {
       mode: onHandle ? 'resize' : 'move',
@@ -3280,12 +3294,9 @@
     if (boardOp.mode === 'move') {
       let nx = Math.max(0, Math.min(12 - o.w, o.x + dCol));
       let ny = Math.max(0, o.y + dRow);
-      const snapped = snapToNeighbors(nx, ny, o.w, o.h, boardOp.id);
-      nx = snapped.x; ny = snapped.y;
       t.style.setProperty('--bx', nx);
       t.style.setProperty('--by', ny);
       boardOp.next = { x: nx, y: ny, w: o.w, h: o.h };
-      showSnapGuides(snapped.guides);
     } else {
       const mn = minBoardSize(tileKind(boardOp.ref));
       let nw = Math.max(mn.w, Math.min(12 - o.x, o.w + dCol));
@@ -3301,7 +3312,6 @@
     boardOp = null;
     op.tile.classList.remove('board-moving', 'board-resizing');
     try { op.tile.releasePointerCapture(e.pointerId); } catch {}
-    clearSnapGuides();
     if (op.moved) {
       // a real drag happened — block the click that the browser fires next
       grid._suppressClick = true;
@@ -3491,7 +3501,7 @@
       if (item.dataset.tileAct === 'open') {
         if (b.type === 'folder') { currentFolder = b.id; renderWsTabs(); renderGrid(); }
         else if (b.tool) openTool(b.tool);
-        else if (b.url) window.open(b.url, '_blank', 'noopener');
+        else if (b.url) openLink(b.url);
       } else if (item.dataset.tileAct === 'edit') openEditModal(b.id);
       else if (item.dataset.tileAct === 'delete') deleteBookmark(b);
       else if (item.dataset.tileAct === 'copy') {
@@ -4447,7 +4457,7 @@
   function execCmdkItem(it) {
     if (!it) return;
     closeCmdk();
-    if (it.type === 'link') window.open(it.url, '_blank', 'noopener');
+    if (it.type === 'link') openLink(it.url);
     else if (it.type === 'note') { openNotes(); selectNote(it.noteId); }
     else if (it.type === 'cmd') {
       if (it.action === 'add-bookmark') openAddModal('bookmark');
@@ -4846,6 +4856,12 @@
       h += '<option value="' + v + '"' + ((settings.density || 'cozy') === v ? ' selected' : '') + '>' + n + '</option>';
     });
     h += '</select></div>';
+    h += '<div class="toggle-row"><div class="toggle-row-label">Open links in <small>where bookmark tiles open</small></div>';
+    h += '<select id="setLinkTarget" style="background:var(--bg-3);border:1px solid var(--border-strong);color:var(--fg);padding:0.4rem 0.6rem;border-radius:4px;font-family:var(--mono);font-size:0.8rem;">';
+    [['new', 'New tab'], ['same', 'Same tab']].forEach(([v, n]) => {
+      h += '<option value="' + v + '"' + ((settings.linkTarget || 'new') === v ? ' selected' : '') + '>' + n + '</option>';
+    });
+    h += '</select></div>';
     h += '</div>';
 
     // Workspace view
@@ -4856,6 +4872,8 @@
     h += '</select></div>';
     h += '<div class="toggle-row"><div class="toggle-row-label">Columns <small>grid density for this workspace</small></div>';
     h += '<input type="number" class="num-input" id="setCols" min="2" max="10" value="' + (ws.cols || 4) + '"></div>';
+    h += '<div class="toggle-row"><div class="toggle-row-label">Lock board <small>board tiles only move with Shift held</small></div>' +
+      '<div class="toggle' + (settings.boardLocked ? ' on' : '') + '" data-board-lock></div></div>';
     h += '</div>';
 
     // Theme
@@ -4980,6 +4998,19 @@
       settings.density = dens.value;
       save(SETTINGS_KEY, settings);
       applyDensity();
+    });
+    const lt = $('setLinkTarget');
+    if (lt) lt.addEventListener('change', () => {
+      settings.linkTarget = lt.value;
+      save(SETTINGS_KEY, settings);
+      renderGrid();
+    });
+    const blT = settingsBody.querySelector('[data-board-lock]');
+    if (blT) blT.addEventListener('click', () => {
+      settings.boardLocked = !settings.boardLocked;
+      blT.classList.toggle('on', settings.boardLocked);
+      save(SETTINGS_KEY, settings);
+      renderGrid();
     });
 
     // themes
