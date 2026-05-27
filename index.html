@@ -503,7 +503,11 @@
       grid-row: calc(var(--by) + 1) / span var(--bh);
       min-height: 0;
       touch-action: none;
+      overflow: hidden;
+      border-radius: 10px;
+      cursor: grab;
     }
+    .grid.view-board.board-locked .board-tile { cursor: default; }
     .board-resize {
       position: absolute;
       right: 2px; bottom: 2px;
@@ -523,9 +527,6 @@
     .board-tile:hover .board-resize { opacity: 1; }
     .board-tile.board-moving { cursor: grabbing; z-index: 10; opacity: 0.85; }
     .board-tile.board-resizing { z-index: 10; outline: 1px dashed var(--accent-bright); }
-    .grid.view-board .board-tile { cursor: grab; }
-    .grid.view-board.board-locked .board-tile { cursor: default; }
-
     /* adaptive board tiles — hide detail as the tile shrinks */
     .board-tile[data-bw="xs"] .tile-name,
     .board-tile[data-bw="xs"] .tile-host,
@@ -547,9 +548,6 @@
     .board-tile[data-bh="xs"] .ct-note-body,
     .board-tile[data-bh="xs"] .ct-check-list,
     .board-tile[data-bh="xs"] .ct-snippet-text { display: none; }
-    /* every board tile clips its overflow cleanly instead of spilling */
-    .grid.view-board .board-tile { overflow: hidden; }
-
     /* pinned tiles float above the rest */
     .board-tile.board-pinned { z-index: 5; }
     .board-tile.board-pinned::after {
