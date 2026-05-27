@@ -340,10 +340,21 @@
       -webkit-backdrop-filter: blur(14px) saturate(1.3);
       border-color: rgba(255,255,255,0.08);
     }
-    html.glass-mode .tile-header {
+    /* headers without a bg stay transparent in glass mode; headers WITH a bg get glass */
+    html.glass-mode .tile-header:not([data-hbg]) {
       background: transparent;
       backdrop-filter: none;
       -webkit-backdrop-filter: none;
+    }
+    html.glass-mode .tile-header[data-hbg="dark"] {
+      background: rgba(0,0,0,0.5);
+    }
+    html.glass-mode .tile-header[data-hbg="light"] {
+      background: rgba(255,255,255,0.1);
+    }
+    html.glass-mode .tile-header[data-hbg="color"] {
+      backdrop-filter: blur(14px) saturate(1.3);
+      -webkit-backdrop-filter: blur(14px) saturate(1.3);
     }
 
     /* ─── VAULT ─── */
@@ -658,6 +669,14 @@
     }
     .tile-header[data-hbg="color"] {
       border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      padding: 0.6rem 1rem;
+    }
+    .tile-header[data-hbg="glass"] {
+      background: rgba(19, 19, 24, 0.55);
+      backdrop-filter: blur(14px) saturate(1.3);
+      -webkit-backdrop-filter: blur(14px) saturate(1.3);
+      border: 1px solid rgba(255,255,255,0.08);
       border-radius: 10px;
       padding: 0.6rem 1rem;
     }
@@ -3136,9 +3155,11 @@
       if (b.headerBg) {
         if (b.headerBg === 'dark' || b.headerBg === 'light') {
           tile.dataset.hbg = b.headerBg;
+        } else if (b.headerBg === 'glass') {
+          tile.dataset.hbg = 'glass';
         } else {
           tile.dataset.hbg = 'color';
-          tile.style.background = b.headerBg + '55'; // hex + alpha
+          tile.style.background = b.headerBg + '55';
         }
       }
     } else if (kind === 'snippet') {
@@ -3867,8 +3888,9 @@
       h += '<button class="btn btn-small hbg-opt' + (!hbg ? ' active' : '') + '" data-hbg="">none</button>';
       h += '<button class="btn btn-small hbg-opt' + (hbg === 'dark' ? ' active' : '') + '" data-hbg="dark" style="background:rgba(0,0,0,0.45);border-color:rgba(255,255,255,0.1);">dark</button>';
       h += '<button class="btn btn-small hbg-opt' + (hbg === 'light' ? ' active' : '') + '" data-hbg="light" style="background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.15);">light</button>';
-      h += '<label class="btn btn-small hbg-opt' + (hbg && hbg !== 'dark' && hbg !== 'light' ? ' active' : '') + '" data-hbg="custom"' +
-        (hbg && hbg !== 'dark' && hbg !== 'light' ? ' style="background:' + hbg + '55;"' : '') +
+      h += '<button class="btn btn-small hbg-opt' + (hbg === 'glass' ? ' active' : '') + '" data-hbg="glass" style="background:rgba(19,19,24,0.55);border-color:rgba(255,255,255,0.08);backdrop-filter:blur(4px);">glass</button>';
+      h += '<label class="btn btn-small hbg-opt' + (hbg && hbg !== 'dark' && hbg !== 'light' && hbg !== 'glass' ? ' active' : '') + '" data-hbg="custom"' +
+        (hbg && hbg !== 'dark' && hbg !== 'light' && hbg !== 'glass' ? ' style="background:' + hbg + '55;"' : '') +
         '>color <input type="color" id="cfHeaderColor" value="' + (hbg && hbg !== 'dark' && hbg !== 'light' ? hbg : '#5e81ac') + '" style="width:20px;height:20px;padding:0;border:none;cursor:pointer;vertical-align:middle;margin-left:4px;"></label>';
       h += '</div></div>';
     } else if (kind === 'note') {
