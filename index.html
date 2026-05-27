@@ -321,6 +321,40 @@
     html[data-density="spacious"] .main { padding-top: 2.2rem; }
     html[data-density="spacious"] .ws-tabs { margin-bottom: 1.8rem; }
 
+    /* ─── DOT GRID BACKGROUND ─── */
+    .main::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: radial-gradient(circle, var(--fg-dimmer) 1px, transparent 1px);
+      background-size: 28px 28px;
+      opacity: 0.35;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .main > * { position: relative; z-index: 1; }
+
+    /* ─── GLASSMORPHISM (optional) ─── */
+    html.glass-mode .tile {
+      background: rgba(19, 19, 24, 0.55);
+      backdrop-filter: blur(14px) saturate(1.3);
+      -webkit-backdrop-filter: blur(14px) saturate(1.3);
+      border-color: rgba(255,255,255,0.08);
+    }
+    html.glass-mode .tile-header {
+      background: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    /* ─── STAGGER TILE APPEARANCE ─── */
+    @keyframes tileFadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .grid .tile {
+      animation: tileFadeIn 0.3s ease both;
+    }
+
     /* ─── VIEW MODES ─── */
 
     /* default: grid */
@@ -2396,7 +2430,8 @@
     searchBar: { engines: ['google', 'ddg'] },
     density: 'cozy',
     boardLocked: false,
-    linkTarget: 'new'
+    linkTarget: 'new',
+    glass: false
   };
   const DEFAULT_WORKSPACES = [{ id: 'base', name: 'BASE', viewMode: 'grid', cols: 4 }];
   const DEFAULT_BOOKMARKS = [{ id: 't-notes', kind: 'tool', label: 'tool', name: 'Notes', tool: 'notes', icon: 'file', ws: 'base', parent: null }];
@@ -2636,6 +2671,9 @@
   function applyDensity() {
     const d = settings.density || 'cozy';
     document.documentElement.dataset.density = d;
+  }
+  function applyGlass() {
+    document.documentElement.classList.toggle('glass-mode', !!settings.glass);
   }
   function applyBg() {
     const layer = $('bgLayer');
@@ -2916,7 +2954,11 @@
     grid.style.removeProperty('--board-rows');
 
     const frag = document.createDocumentFragment();
-    items.forEach(b => frag.appendChild(makeTile(b)));
+    items.forEach((b, i) => {
+      const t = makeTile(b);
+      t.style.animationDelay = (i * 0.03) + 's';
+      frag.appendChild(t);
+    });
 
     if (!currentFolder) {
       (settings.currencyPairs || []).forEach(pair => {
@@ -2958,8 +3000,9 @@
       const A = a.board || { x: 0, y: 0 }, B = b.board || { x: 0, y: 0 };
       return (A.y - B.y) || (A.x - B.x);
     });
-    ordered.forEach(b => {
+    ordered.forEach((b, i) => {
       const tile = makeTile(b);
+      tile.style.animationDelay = (i * 0.03) + 's';
       const bd = b.board || { x: 0, y: 0, w: 2, h: 2 };
       tile.classList.add('board-tile');
       tile.draggable = false; // board uses pointer-drag, not HTML5 DnD
@@ -4860,6 +4903,8 @@
       h += '<option value="' + v + '"' + ((settings.linkTarget || 'new') === v ? ' selected' : '') + '>' + n + '</option>';
     });
     h += '</select></div>';
+    h += '<div class="toggle-row"><div class="toggle-row-label">Glass tiles <small>frosted-glass effect when background image is set</small></div>' +
+      '<div class="toggle' + (settings.glass ? ' on' : '') + '" data-glass></div></div>';
     h += '</div>';
 
     // Workspace view
@@ -5002,6 +5047,13 @@
       settings.linkTarget = lt.value;
       save(SETTINGS_KEY, settings);
       renderGrid();
+    });
+    const glT = settingsBody.querySelector('[data-glass]');
+    if (glT) glT.addEventListener('click', () => {
+      settings.glass = !settings.glass;
+      glT.classList.toggle('on', settings.glass);
+      save(SETTINGS_KEY, settings);
+      applyGlass();
     });
     const blT = settingsBody.querySelector('[data-board-lock]');
     if (blT) blT.addEventListener('click', () => {
@@ -5356,6 +5408,7 @@
   buildColorPalette();
   applyTheme();
   applyDensity();
+  applyGlass();
   applyBg();
   loadBgImage();
   renderWsTabs();
