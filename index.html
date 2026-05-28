@@ -321,61 +321,6 @@
     html[data-density="spacious"] .main { padding-top: 2.2rem; }
     html[data-density="spacious"] .ws-tabs { margin-bottom: 1.8rem; }
 
-    /* ─── DOT GRID BACKGROUND ─── */
-    .main::before {
-      content: '';
-      position: fixed; inset: 0;
-      background-image: radial-gradient(circle, var(--fg-dimmer) 1px, transparent 1px);
-      background-size: 28px 28px;
-      opacity: 0.35;
-      pointer-events: none;
-      z-index: 0;
-    }
-    .main > * { position: relative; z-index: 1; }
-
-    /* ─── GLASSMORPHISM (optional) ─── */
-    html.glass-mode .tile {
-      background: rgba(19, 19, 24, 0.55);
-      backdrop-filter: blur(14px) saturate(1.3);
-      -webkit-backdrop-filter: blur(14px) saturate(1.3);
-      border-color: rgba(255,255,255,0.08);
-    }
-    /* headers without a bg stay transparent in glass mode; headers WITH a bg get glass */
-    html.glass-mode .tile-header:not([data-hbg]) {
-      background: transparent;
-      backdrop-filter: none;
-      -webkit-backdrop-filter: none;
-    }
-    html.glass-mode .tile-header[data-hbg="dark"] {
-      background: rgba(0,0,0,0.5);
-    }
-    html.glass-mode .tile-header[data-hbg="light"] {
-      background: rgba(255,255,255,0.1);
-    }
-    html.glass-mode .tile-header[data-hbg="color"] {
-      backdrop-filter: blur(14px) saturate(1.3);
-      -webkit-backdrop-filter: blur(14px) saturate(1.3);
-    }
-
-    /* ─── VAULT ─── */
-    @keyframes shake {
-      0%, 100% { transform: translateX(0); }
-      20%, 60% { transform: translateX(-6px); }
-      40%, 80% { transform: translateX(6px); }
-    }
-    .shake { animation: shake 0.35s ease; }
-    .ws-vault { border-left: none; }
-    .hbg-opt.active { outline: 2px solid var(--accent-bright); outline-offset: 1px; }
-
-    /* ─── STAGGER TILE APPEARANCE ─── */
-    @keyframes tileFadeIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .grid.stagger-in .tile {
-      animation: tileFadeIn 0.15s ease both;
-    }
-
     /* ─── VIEW MODES ─── */
 
     /* default: grid */
@@ -558,11 +503,7 @@
       grid-row: calc(var(--by) + 1) / span var(--bh);
       min-height: 0;
       touch-action: none;
-      overflow: hidden;
-      border-radius: 10px;
-      cursor: grab;
     }
-    .grid.view-board.board-locked .board-tile { cursor: default; }
     .board-resize {
       position: absolute;
       right: 2px; bottom: 2px;
@@ -582,6 +523,9 @@
     .board-tile:hover .board-resize { opacity: 1; }
     .board-tile.board-moving { cursor: grabbing; z-index: 10; opacity: 0.85; }
     .board-tile.board-resizing { z-index: 10; outline: 1px dashed var(--accent-bright); }
+    .grid.view-board .board-tile { cursor: grab; }
+    .grid.view-board.board-locked .board-tile { cursor: default; }
+
     /* adaptive board tiles — hide detail as the tile shrinks */
     .board-tile[data-bw="xs"] .tile-name,
     .board-tile[data-bw="xs"] .tile-host,
@@ -603,6 +547,9 @@
     .board-tile[data-bh="xs"] .ct-note-body,
     .board-tile[data-bh="xs"] .ct-check-list,
     .board-tile[data-bh="xs"] .ct-snippet-text { display: none; }
+    /* every board tile clips its overflow cleanly instead of spilling */
+    .grid.view-board .board-tile { overflow: hidden; }
+
     /* pinned tiles float above the rest */
     .board-tile.board-pinned { z-index: 5; }
     .board-tile.board-pinned::after {
@@ -655,32 +602,7 @@
       border-radius: 0;
       padding: 0.3rem 0.2rem;
     }
-    .tile-header[data-hbg="dark"] {
-      background: rgba(0,0,0,0.45);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 10px;
-      padding: 0.6rem 1rem;
-    }
-    .tile-header[data-hbg="light"] {
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 10px;
-      padding: 0.6rem 1rem;
-    }
-    .tile-header[data-hbg="color"] {
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 10px;
-      padding: 0.6rem 1rem;
-    }
-    .tile-header[data-hbg="glass"] {
-      background: rgba(19, 19, 24, 0.55);
-      backdrop-filter: blur(14px) saturate(1.3);
-      -webkit-backdrop-filter: blur(14px) saturate(1.3);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 10px;
-      padding: 0.6rem 1rem;
-    }
-    .tile-header:hover { transform: none; }
+    .tile-header:hover { background: transparent; transform: none; border-color: var(--tile-color, var(--accent)); }
     .ct-header-text {
       font-family: var(--display); font-size: 1.1rem;
       letter-spacing: 0.04em;
@@ -868,20 +790,63 @@
     /* empty state for workspace */
     .grid-empty {
       grid-column: 1 / -1;
-      padding: 4rem 1rem;
-      text-align: center;
+      padding: 3.5rem 1rem;
+      text-align: left;
       color: var(--fg-dim);
-      font-size: 0.75rem;
-      letter-spacing: 0.3em;
-      text-transform: uppercase;
+      max-width: 720px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    .grid-empty h2 {
+      font-family: var(--display);
+      font-weight: 300;
+      font-size: 2rem;
+      letter-spacing: 0;
+      color: var(--fg);
+      margin-bottom: 0.75rem;
+    }
+    .grid-empty p {
+      font-size: 0.82rem;
+      line-height: 1.65;
+      letter-spacing: 0.03em;
+      max-width: 560px;
     }
     .grid-empty .hint {
-      margin-top: 1rem;
+      margin-top: 1.1rem;
       font-size: 0.65rem;
       color: var(--fg-dimmer);
       letter-spacing: 0.2em;
+      text-transform: uppercase;
     }
     .grid-empty .hint .kbd { margin: 0 0.2em; }
+    .empty-actions {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      margin-top: 1.5rem;
+    }
+    .empty-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.65rem 0.9rem;
+      background: var(--bg-2);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      color: var(--fg);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.66rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .empty-action:hover {
+      background: var(--bg-3);
+      border-color: var(--accent);
+      color: var(--accent-bright);
+    }
+    .empty-action svg { width: 14px; height: 14px; flex-shrink: 0; }
 
     /* footer */
     .footer {
@@ -1985,7 +1950,35 @@
       .todo-panel { width: 90vw; }
       .clock-row { flex-direction: column; gap: 1rem; }
       .deadline-card { max-width: 90%; }
-      .notes-list { display: none; }
+      .notes-modal { width: 100vw; height: 100dvh; max-height: none; border-radius: 0; padding: 1rem; }
+      .notes-body { flex-direction: column; }
+      .notes-list { display: flex; width: 100%; max-height: 34vh; border-right: none; border-bottom: 1px solid var(--border); }
+      .notes-editor { min-height: 0; }
+      .footer { letter-spacing: 0.18em; }
+      .footer-btns { width: 100%; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+    }
+    @media (max-width: 520px) {
+      .main { padding: 1rem; }
+      .topbar, .topbar-left, .topbar-right { justify-content: center; gap: 0.7rem; letter-spacing: 0.18em; }
+      .clock { font-size: 3.4rem; }
+      .date { letter-spacing: 0.18em; text-align: center; }
+      .ws-tabs { gap: 1rem; letter-spacing: 0.22em; font-size: 0.68rem; }
+      .grid.view-grid, .grid.view-compact, .grid.view-list, .grid.view-terminal { grid-template-columns: 1fr; }
+      .grid.view-quickdial { grid-template-columns: repeat(2, 1fr); }
+      .grid.view-list .tile, .grid.view-terminal .tile { display: flex; align-items: flex-start; gap: 0.7rem; }
+      .tile-actions { opacity: 1; }
+      .grid-empty { padding: 2rem 0; }
+      .grid-empty h2 { font-size: 1.55rem; }
+      .empty-actions { flex-direction: column; }
+      .empty-action, .btn, .modal-actions .btn { width: 100%; justify-content: center; }
+      .modal-backdrop { align-items: flex-end; }
+      .modal { width: 100%; max-width: none; max-height: 92dvh; border-radius: 12px 12px 0 0; padding: 1.1rem; }
+      .modal h2 { font-size: 1.25rem; margin-bottom: 1rem; }
+      .modal-actions { flex-direction: column-reverse; }
+      .cmdk { padding: 0.75rem; align-items: flex-start; padding-top: 8vh; }
+      .cmdk-box { width: 100%; }
+      .todo-panel { width: 100vw; right: 0; top: 0; bottom: 0; border-radius: 0; }
+      .fab { right: 1rem; bottom: 4.5rem; }
     }
   </style>
 </head>
@@ -2209,20 +2202,6 @@
   <!-- CONTEXT MENU -->
   <div class="ctx-menu" id="ctxMenu"></div>
 
-  <!-- VAULT PIN MODAL -->
-  <div class="modal-backdrop" id="vaultBackdrop">
-    <div class="modal" style="max-width:320px;text-align:center;">
-      <h2 style="margin-bottom:0.3rem;">Vault</h2>
-      <small style="color:var(--fg-dim);display:block;margin-bottom:1.2rem;">enter PIN to unlock hidden workspace</small>
-      <input type="password" id="vaultPinInput" maxlength="20" placeholder="PIN" autocomplete="off"
-        style="text-align:center;font-size:1.4rem;letter-spacing:0.4em;width:100%;">
-      <div class="modal-actions" style="margin-top:1rem;">
-        <button class="btn" id="vaultCancel">cancel</button>
-        <button class="btn btn-primary" id="vaultUnlock">unlock</button>
-      </div>
-    </div>
-  </div>
-
   <!-- CONTENT TILE MODAL (note/checklist/header/snippet) — body filled in JS -->
   <div class="modal-backdrop" id="contentBackdrop">
     <div class="modal">
@@ -2239,7 +2218,7 @@
   <!-- COMMAND PALETTE -->
   <div class="cmdk" id="cmdk">
     <div class="cmdk-box">
-      <input type="text" id="cmdkInput" placeholder="search tiles, notes, commands… or just start typing" autocomplete="off">
+      <input type="text" id="cmdkInput" placeholder="search bookmarks, notes, commands…" autocomplete="off">
       <div class="cmdk-list" id="cmdkList"></div>
     </div>
   </div>
@@ -2490,8 +2469,7 @@
     searchBar: { engines: ['google', 'ddg'] },
     density: 'cozy',
     boardLocked: false,
-    linkTarget: 'new',
-    glass: false
+    linkTarget: 'new'
   };
   const DEFAULT_WORKSPACES = [{ id: 'base', name: 'BASE', viewMode: 'grid', cols: 4 }];
   const DEFAULT_BOOKMARKS = [{ id: 't-notes', kind: 'tool', label: 'tool', name: 'Notes', tool: 'notes', icon: 'file', ws: 'base', parent: null }];
@@ -2604,14 +2582,6 @@
   });
   if (workspaces.length === 0) workspaces = [{ id: 'base', name: 'BASE', viewMode: 'grid', cols: 4 }];
   if (!workspaces.find(w => w.id === settings.activeWs)) settings.activeWs = workspaces[0].id;
-  // if active ws is hidden (vault), redirect to first normal ws on load (vault needs PIN)
-  (function() {
-    const aw = workspaces.find(w => w.id === settings.activeWs);
-    if (aw && aw.hidden) {
-      const norm = workspaces.find(w => !w.hidden);
-      if (norm) settings.activeWs = norm.id;
-    }
-  })();
 
   // ═══════════ TILE DATA MODEL ═══════════
   // Every tile has an explicit `kind`. Legacy tiles are migrated on load.
@@ -2677,7 +2647,6 @@
   })();
 
   let currentFolder = null;
-  let vaultUnlocked = false; // true when hidden workspace is unlocked this session
   let editingId = null;
   let editingType = 'bookmark';
   let selectedIcon = 'link';
@@ -2740,9 +2709,6 @@
   function applyDensity() {
     const d = settings.density || 'cozy';
     document.documentElement.dataset.density = d;
-  }
-  function applyGlass() {
-    document.documentElement.classList.toggle('glass-mode', !!settings.glass);
   }
   function applyBg() {
     const layer = $('bgLayer');
@@ -2859,10 +2825,12 @@
   function activeWs() { return workspaces.find(w => w.id === settings.activeWs) || workspaces[0]; }
   // Brief fade+slide when the grid content swaps (workspace switch).
   function animateGridSwap() {
-    grid.classList.remove('grid-swap', 'stagger-in');
-    void grid.offsetWidth;
-    grid.classList.add('grid-swap', 'stagger-in');
-    setTimeout(() => grid.classList.remove('stagger-in'), 800);
+    requestAnimationFrame(() => {
+      grid.classList.remove('grid-swap');
+      // force reflow so the animation restarts even on rapid switches
+      void grid.offsetWidth;
+      grid.classList.add('grid-swap');
+    });
   }
 
   function renderWsTabs() {
@@ -2899,15 +2867,12 @@
     }
     const frag = document.createDocumentFragment();
     workspaces.forEach(ws => {
-      // hidden workspaces only show if vault is unlocked and active
-      if (ws.hidden && !(vaultUnlocked && settings.activeWs === ws.id)) return;
       const btn = document.createElement('button');
-      btn.className = 'ws-tab' + (settings.activeWs === ws.id ? ' active' : '') + (ws.hidden ? ' ws-vault' : '');
+      btn.className = 'ws-tab' + (settings.activeWs === ws.id ? ' active' : '');
       btn.dataset.wsId = ws.id;
       btn.draggable = true;
       const count = bookmarks.filter(b => !b.parent && b.ws === ws.id).length;
-      btn.innerHTML = (ws.hidden ? '<svg style="width:11px;height:11px;vertical-align:-1px;margin-right:4px;opacity:0.5;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>' : '') +
-        escapeHtml(ws.name) + '<span class="ws-tab-count">' + count + '</span>';
+      btn.innerHTML = escapeHtml(ws.name) + '<span class="ws-tab-count">' + count + '</span>';
       frag.appendChild(btn);
     });
     const addBtn = document.createElement('button');
@@ -3024,11 +2989,7 @@
     grid.style.removeProperty('--board-rows');
 
     const frag = document.createDocumentFragment();
-    items.forEach((b, i) => {
-      const t = makeTile(b);
-      if (grid.classList.contains('stagger-in')) t.style.animationDelay = (i * 0.02) + 's';
-      frag.appendChild(t);
-    });
+    items.forEach(b => frag.appendChild(makeTile(b)));
 
     if (!currentFolder) {
       (settings.currencyPairs || []).forEach(pair => {
@@ -3038,10 +2999,34 @@
 
     grid.innerHTML = '';
     const currCount = currentFolder ? 0 : (settings.currencyPairs || []).filter(p => p.ws === settings.activeWs || !p.ws).length;
-    if (items.length === 0 && currCount === 0) {
+    const starterOnly = !currentFolder && currCount === 0 && items.length === 1 && items[0].id === 't-notes' && bookmarks.length === 1;
+    if (starterOnly) {
       const empty = document.createElement('div');
       empty.className = 'grid-empty';
-      empty.innerHTML = 'this workspace is empty<div class="hint">right-click to add &middot; <span class="kbd">Ctrl</span>+<span class="kbd">N</span></div>';
+      empty.innerHTML =
+        '<h2>Welcome to chessium</h2>' +
+        '<p>Start by adding your first link, importing browser bookmarks, or tuning the workspace layout.</p>' +
+        '<div class="empty-actions">' +
+          '<button class="empty-action" data-empty-action="add-bookmark">' + iconSvg('link', '') + 'add tile</button>' +
+          '<button class="empty-action" data-empty-action="import-bookmarks">' + iconSvg('download', '') + 'import bookmarks</button>' +
+          '<button class="empty-action" data-empty-action="settings">' + iconSvg('settings', '') + 'settings</button>' +
+        '</div>' +
+        '<div class="hint">quick start · notes are already pinned below</div>';
+      grid.appendChild(empty);
+      grid.appendChild(frag);
+      fab.classList.add('show');
+    } else if (items.length === 0 && currCount === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'grid-empty';
+      empty.innerHTML =
+        '<h2>' + escapeHtml(ws.name || 'Workspace') + ' is ready</h2>' +
+        '<p>Add a first tile, import browser bookmarks, or open settings to shape this workspace.</p>' +
+        '<div class="empty-actions">' +
+          '<button class="empty-action" data-empty-action="add-bookmark">' + iconSvg('link', '') + 'add tile</button>' +
+          '<button class="empty-action" data-empty-action="import-bookmarks">' + iconSvg('download', '') + 'import bookmarks</button>' +
+          '<button class="empty-action" data-empty-action="settings">' + iconSvg('settings', '') + 'settings</button>' +
+        '</div>' +
+        '<div class="hint">right-click anywhere or press <span class="kbd">Ctrl</span>+<span class="kbd">N</span></div>';
       grid.appendChild(empty);
       fab.classList.add('show');
     } else {
@@ -3056,7 +3041,15 @@
     if (items.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'grid-empty';
-      empty.innerHTML = 'this board is empty<div class="hint">right-click to add a tile</div>';
+      empty.innerHTML =
+        '<h2>Board is ready</h2>' +
+        '<p>Add tiles first, then arrange and resize them into a control panel.</p>' +
+        '<div class="empty-actions">' +
+          '<button class="empty-action" data-empty-action="add-bookmark">' + iconSvg('link', '') + 'add tile</button>' +
+          '<button class="empty-action" data-empty-action="import-bookmarks">' + iconSvg('download', '') + 'import bookmarks</button>' +
+          '<button class="empty-action" data-empty-action="settings">' + iconSvg('settings', '') + 'settings</button>' +
+        '</div>' +
+        '<div class="hint">right-click anywhere to add a tile</div>';
       grid.appendChild(empty);
       fab.classList.add('show');
       grid.style.removeProperty('--board-rows');
@@ -3070,9 +3063,8 @@
       const A = a.board || { x: 0, y: 0 }, B = b.board || { x: 0, y: 0 };
       return (A.y - B.y) || (A.x - B.x);
     });
-    ordered.forEach((b, i) => {
+    ordered.forEach(b => {
       const tile = makeTile(b);
-      if (grid.classList.contains('stagger-in')) tile.style.animationDelay = (i * 0.02) + 's';
       const bd = b.board || { x: 0, y: 0, w: 2, h: 2 };
       tile.classList.add('board-tile');
       tile.draggable = false; // board uses pointer-drag, not HTML5 DnD
@@ -3152,16 +3144,6 @@
         '<div class="ct-note-body">' + escapeHtml(b.text || '').replace(/\n/g, '<br>') + '</div>';
     } else if (kind === 'header') {
       tile.innerHTML = '<div class="ct-header-text">' + escapeHtml(b.name || 'Section') + '</div>';
-      if (b.headerBg) {
-        if (b.headerBg === 'dark' || b.headerBg === 'light') {
-          tile.dataset.hbg = b.headerBg;
-        } else if (b.headerBg === 'glass') {
-          tile.dataset.hbg = 'glass';
-        } else {
-          tile.dataset.hbg = 'color';
-          tile.style.background = b.headerBg + '55';
-        }
-      }
     } else if (kind === 'snippet') {
       tile.innerHTML =
         '<div class="ct-snippet-head">' +
@@ -3218,6 +3200,15 @@
     return tile;
   }
   grid.addEventListener('click', (e) => {
+    const emptyAction = e.target.closest('[data-empty-action]');
+    if (emptyAction) {
+      e.preventDefault(); e.stopPropagation();
+      const action = emptyAction.dataset.emptyAction;
+      if (action === 'add-bookmark') openAddModal('bookmark');
+      else if (action === 'import-bookmarks') $('bookmarkImportFile').click();
+      else if (action === 'settings') openSettings();
+      return;
+    }
     const cr = e.target.closest('[data-action="curr-remove"]');
     if (cr) {
       e.preventDefault(); e.stopPropagation();
@@ -3883,16 +3874,6 @@
     let h = '';
     if (kind === 'header') {
       h += '<div class="field"><label>section title</label><input type="text" id="cfName" maxlength="60" placeholder="— Production —"></div>';
-      const hbg = (b && b.headerBg) || '';
-      h += '<div class="field"><label>header background</label><div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">';
-      h += '<button class="btn btn-small hbg-opt' + (!hbg ? ' active' : '') + '" data-hbg="">none</button>';
-      h += '<button class="btn btn-small hbg-opt' + (hbg === 'dark' ? ' active' : '') + '" data-hbg="dark" style="background:rgba(0,0,0,0.45);border-color:rgba(255,255,255,0.1);">dark</button>';
-      h += '<button class="btn btn-small hbg-opt' + (hbg === 'light' ? ' active' : '') + '" data-hbg="light" style="background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.15);">light</button>';
-      h += '<button class="btn btn-small hbg-opt' + (hbg === 'glass' ? ' active' : '') + '" data-hbg="glass" style="background:rgba(19,19,24,0.55);border-color:rgba(255,255,255,0.08);backdrop-filter:blur(4px);">glass</button>';
-      h += '<label class="btn btn-small hbg-opt' + (hbg && hbg !== 'dark' && hbg !== 'light' && hbg !== 'glass' ? ' active' : '') + '" data-hbg="custom"' +
-        (hbg && hbg !== 'dark' && hbg !== 'light' && hbg !== 'glass' ? ' style="background:' + hbg + '55;"' : '') +
-        '>color <input type="color" id="cfHeaderColor" value="' + (hbg && hbg !== 'dark' && hbg !== 'light' ? hbg : '#5e81ac') + '" style="width:20px;height:20px;padding:0;border:none;cursor:pointer;vertical-align:middle;margin-left:4px;"></label>';
-      h += '</div></div>';
     } else if (kind === 'note') {
       h += '<div class="field"><label>title</label><input type="text" id="cfName" maxlength="60" placeholder="Note"></div>';
       h += '<div class="field"><label>text</label><textarea id="cfText" rows="6" placeholder="write anything…"></textarea></div>';
@@ -3928,7 +3909,6 @@
     }
   }
   let contentColor = null;
-  let contentHeaderBg = '';
   function buildContentColorPalette(current) {
     contentColor = current || null;
     const pal = $('cfColorPalette');
@@ -3986,31 +3966,9 @@
     contentKind = kind;
     contentEditId = editId || null;
     const b = editId ? bookmarks.find(x => x.id === editId) : null;
-    contentHeaderBg = (b && b.headerBg) || '';
     $('contentTitle').textContent = (editId ? 'Edit ' : 'New ') + CONTENT_LABELS[kind].toLowerCase();
     buildContentModal(kind, b);
     $('contentDelete').style.display = editId ? 'inline-block' : 'none';
-    // wire header bg buttons
-    contentBody.querySelectorAll('.hbg-opt').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        const v = btn.dataset.hbg;
-        if (v === 'custom') {
-          contentHeaderBg = ($('cfHeaderColor') || {}).value || '#5e81ac';
-        } else {
-          contentHeaderBg = v;
-        }
-        contentBody.querySelectorAll('.hbg-opt').forEach(x => x.classList.remove('active'));
-        btn.classList.add('active');
-      });
-    });
-    const hcInp = $('cfHeaderColor');
-    if (hcInp) hcInp.addEventListener('input', () => {
-      contentHeaderBg = hcInp.value;
-      const customBtn = contentBody.querySelector('[data-hbg="custom"]');
-      if (customBtn) { customBtn.style.background = hcInp.value + '55'; customBtn.classList.add('active'); }
-      contentBody.querySelectorAll('.hbg-opt:not([data-hbg="custom"])').forEach(x => x.classList.remove('active'));
-    });
     contentBackdrop.classList.add('active');
     setTimeout(() => { const f = $('cfName'); if (f) f.focus(); }, 50);
   }
@@ -4033,14 +3991,12 @@
       b.ws = wsId;
       if (contentKind === 'note' || contentKind === 'snippet') b.text = text;
       if (contentKind === 'checklist') b.items = contentChecklist.filter(it => it.text.trim());
-      if (contentKind === 'header') b.headerBg = contentHeaderBg || '';
       showToast('updated');
     } else {
       const nb = { id: uid(), kind: contentKind, name: name, color: contentColor,
         ws: wsId, parent: currentFolder };
       if (contentKind === 'note' || contentKind === 'snippet') nb.text = text;
       if (contentKind === 'checklist') nb.items = contentChecklist.filter(it => it.text.trim());
-      if (contentKind === 'header') nb.headerBg = contentHeaderBg || '';
       bookmarks.push(nb);
       showToast(CONTENT_LABELS[contentKind] + ' added');
     }
@@ -4560,20 +4516,10 @@
       };
       cmdkItems.push(Object.assign({ type: 'link' }, map[cmd], { queryHint: '"' + term + '"' }));
     }
-    // all tiles across all workspaces
-    bookmarks.forEach(b => {
-      const kind = tileKind(b);
-      const hay = ((b.name || '') + ' ' + (b.label || '') + ' ' + (b.url || '') + ' ' + (b.text || '')).toLowerCase();
-      if (!q || hay.includes(q)) {
-        const wsObj = workspaces.find(w => w.id === b.ws);
-        const wsName = (wsObj && wsObj.name) || '';
-        let hint = kind;
-        if (b.label) hint = b.label;
-        if (wsName && workspaces.length > 1) hint += ' · ' + wsName;
-        const it = { type: kind === 'link' ? 'link' : 'tile', name: b.name || 'Unnamed', icon: b.icon || 'link', hint: hint, tileId: b.id };
-        if (b.url) it.url = b.url;
-        cmdkItems.push(it);
-      }
+    // bookmarks
+    bookmarks.filter(b => !b.tool && !b.type).forEach(b => {
+      const hay = (b.name + ' ' + (b.label || '') + ' ' + (b.url || '')).toLowerCase();
+      if (!q || hay.includes(q)) cmdkItems.push({ type: 'link', name: b.name, url: b.url, icon: b.icon || 'link', hint: b.label || '' });
     });
     // notes
     if (q) {
@@ -4586,10 +4532,6 @@
     const cmds = [
       { name: 'Add bookmark', action: 'add-bookmark', icon: 'link', hint: 'cmd' },
       { name: 'Add folder', action: 'add-folder', icon: 'folder', hint: 'cmd' },
-      { name: 'Add note', action: 'add-note', icon: 'file', hint: 'cmd' },
-      { name: 'Add checklist', action: 'add-checklist', icon: 'box', hint: 'cmd' },
-      { name: 'Add header', action: 'add-header', icon: 'bar', hint: 'cmd' },
-      { name: 'Add snippet', action: 'add-snippet', icon: 'terminal', hint: 'cmd' },
       { name: 'Open settings', action: 'settings', icon: 'settings', hint: 'cmd' },
       { name: 'Open notes', action: 'notes', icon: 'file', hint: 'cmd' },
       { name: 'Open tasks', action: 'tasks', icon: 'list', hint: 'cmd' },
@@ -4628,34 +4570,10 @@
     if (!it) return;
     closeCmdk();
     if (it.type === 'link') openLink(it.url);
-    else if (it.type === 'tile') {
-      // navigate to the tile's workspace
-      const b = bookmarks.find(x => x.id === it.tileId);
-      if (b) {
-        if (b.ws !== settings.activeWs) {
-          settings.activeWs = b.ws;
-          save(SETTINGS_KEY, settings);
-          currentFolder = null;
-          renderWsTabs();
-          renderGrid();
-          animateGridSwap();
-        }
-        const kind = tileKind(b);
-        if (kind === 'snippet' && b.text) {
-          navigator.clipboard.writeText(b.text).then(() => showToast('copied: ' + b.name)).catch(() => {});
-        } else if (kind === 'link' && b.url) {
-          openLink(b.url);
-        }
-      }
-    }
     else if (it.type === 'note') { openNotes(); selectNote(it.noteId); }
     else if (it.type === 'cmd') {
       if (it.action === 'add-bookmark') openAddModal('bookmark');
       else if (it.action === 'add-folder') openAddModal('folder');
-      else if (it.action === 'add-note') openContentModal('note');
-      else if (it.action === 'add-checklist') openContentModal('checklist');
-      else if (it.action === 'add-header') openContentModal('header');
-      else if (it.action === 'add-snippet') openContentModal('snippet');
       else if (it.action === 'settings') openSettings();
       else if (it.action === 'notes') openNotes();
       else if (it.action === 'tasks') todoPanel.classList.add('open');
@@ -4764,35 +4682,41 @@
   }
   function collectData() {
     return {
-      _meta: { savedAt: Date.now(), app: 'chessium-console', version: 6, format: 'full-backup' },
+      _meta: { savedAt: Date.now(), app: 'chessium-console', version: 5 },
       bookmarks: bookmarks,
       workspaces: workspaces,
       settings: settings,
       notes: notes,
-      todos: todos,
-      bgMeta: load(BG_KEY, null)
+      todos: todos
     };
+  }
+  function backupFilename(reason) {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    return 'chessium-auto-backup-' + reason + '-' + stamp + '.json';
+  }
+  function downloadBackup(reason) {
+    const payload = collectData();
+    payload._meta.backupReason = reason;
+    const json = JSON.stringify(payload, null, 2);
+    try {
+      localStorage.setItem('chessium_last_auto_backup', json);
+      localStorage.setItem('chessium_last_auto_backup_at', String(Date.now()));
+    } catch {}
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = backupFilename(reason);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    showToast('safety backup downloaded');
   }
   // applyImportedData: applies a backup. preserveSync=true keeps local sync creds
   // (used by pull, so a backup with stale/empty token doesn't kill syncing).
   function applyImportedData(data, preserveSync) {
     const keepSync = preserveSync ? Object.assign({}, settings.sync) : null;
-
-    // --- handle legacy formats ---
-    // old v3/v4 export was a raw array of bookmarks
-    if (Array.isArray(data)) { data = { bookmarks: data }; }
-    // old single-key dumps (e.g. { sysadmin_data_v5: [...], sysadmin_settings_v3: {...} })
-    if (data.sysadmin_data_v5 || data.sysadmin_data_v4 || data.sysadmin_data_v3) {
-      const rawBookmarks = data.sysadmin_data_v5 || data.sysadmin_data_v4 || data.sysadmin_data_v3;
-      data = {
-        bookmarks: rawBookmarks,
-        workspaces: data.sysadmin_workspaces_v2 || data.sysadmin_workspaces_v1,
-        settings: data.sysadmin_settings_v3 || data.sysadmin_settings_v2,
-        notes: data.sysadmin_notes_v2 || data.sysadmin_notes_v1,
-        todos: data.sysadmin_todo_v3 || data.sysadmin_todo_v2
-      };
-    }
-
     if (data.bookmarks) { bookmarks = data.bookmarks; save(DATA_KEY, bookmarks); }
     if (data.workspaces) {
       workspaces = data.workspaces;
@@ -4806,21 +4730,9 @@
     }
     if (data.notes) { notes = data.notes; save(NOTES_KEY, notes); }
     if (data.todos) { todos = data.todos; save(TODO_KEY, todos); }
-    if (data.bgMeta) { save(BG_KEY, data.bgMeta); bgData = data.bgMeta; }
-
-    // stamp kind on any imported tiles that lack it
-    let kindChanged = false;
-    bookmarks.forEach(b => {
-      if (!b.kind || TILE_KINDS.indexOf(b.kind) === -1) { b.kind = tileKind(b); kindChanged = true; }
-    });
-    if (kindChanged) save(DATA_KEY, bookmarks);
-
     if (!workspaces.find(w => w.id === settings.activeWs)) settings.activeWs = workspaces[0].id;
     applyTheme();
-    applyDensity();
-    applyGlass();
     applyBg();
-    loadBgImage();
     renderWsTabs();
     renderGrid();
     renderTodos();
@@ -4972,6 +4884,7 @@
         const anchors = doc.querySelectorAll('a[href]');
         if (anchors.length === 0) { showToast('no bookmarks found', 'error'); return; }
         if (!confirm('Import ' + anchors.length + ' bookmark(s) into current workspace "' + activeWs().name + '"?')) return;
+        downloadBackup('before-bookmark-import');
         let added = 0;
         anchors.forEach(a => {
           const url = a.getAttribute('href');
@@ -5085,8 +4998,6 @@
       h += '<option value="' + v + '"' + ((settings.linkTarget || 'new') === v ? ' selected' : '') + '>' + n + '</option>';
     });
     h += '</select></div>';
-    h += '<div class="toggle-row"><div class="toggle-row-label">Glass tiles <small>frosted-glass effect when background image is set</small></div>' +
-      '<div class="toggle' + (settings.glass ? ' on' : '') + '" data-glass></div></div>';
     h += '</div>';
 
     // Workspace view
@@ -5229,13 +5140,6 @@
       settings.linkTarget = lt.value;
       save(SETTINGS_KEY, settings);
       renderGrid();
-    });
-    const glT = settingsBody.querySelector('[data-glass]');
-    if (glT) glT.addEventListener('click', () => {
-      settings.glass = !settings.glass;
-      glT.classList.toggle('on', settings.glass);
-      save(SETTINGS_KEY, settings);
-      applyGlass();
     });
     const blT = settingsBody.querySelector('[data-board-lock]');
     if (blT) blT.addEventListener('click', () => {
@@ -5495,38 +5399,6 @@
       });
       row.appendChild(moveBox);
       row.appendChild(name);
-      // vault (hidden) toggle + PIN
-      const vaultWrap = document.createElement('div');
-      vaultWrap.style.cssText = 'display:flex;align-items:center;gap:0.4rem;margin-left:auto;';
-      const hiddenLbl = document.createElement('label');
-      hiddenLbl.style.cssText = 'font-size:0.7rem;color:var(--fg-dim);display:flex;align-items:center;gap:0.3rem;cursor:pointer;';
-      const hiddenCb = document.createElement('input');
-      hiddenCb.type = 'checkbox';
-      hiddenCb.checked = !!w.hidden;
-      hiddenCb.style.cssText = 'accent-color:var(--accent-bright);';
-      hiddenCb.addEventListener('change', () => {
-        // only one workspace can be hidden at a time
-        if (hiddenCb.checked) workspaces.forEach(ws => { ws.hidden = false; });
-        w.hidden = hiddenCb.checked;
-        if (w.hidden && !w.pin) w.pin = '0000';
-        save(WS_KEY, workspaces);
-        renderWsSettings();
-        renderWsTabs();
-      });
-      hiddenLbl.appendChild(hiddenCb);
-      hiddenLbl.appendChild(document.createTextNode('vault'));
-      vaultWrap.appendChild(hiddenLbl);
-      if (w.hidden) {
-        const pinInp = document.createElement('input');
-        pinInp.type = 'text';
-        pinInp.value = w.pin || '';
-        pinInp.placeholder = 'PIN';
-        pinInp.maxLength = 20;
-        pinInp.style.cssText = 'width:70px;font-size:0.75rem;text-align:center;';
-        pinInp.addEventListener('input', () => { w.pin = pinInp.value; save(WS_KEY, workspaces); });
-        vaultWrap.appendChild(pinInp);
-      }
-      row.appendChild(vaultWrap);
       row.appendChild(del);
       wrap.appendChild(row);
     });
@@ -5534,6 +5406,7 @@
 
   $('resetAllBtn').addEventListener('click', () => {
     if (confirm('Reset EVERYTHING to defaults? (bookmarks, notes, tasks, settings, workspaces, background)')) {
+      downloadBackup('before-reset');
       [DATA_KEY, SETTINGS_KEY, WS_KEY, NOTES_KEY, TODO_KEY, CURR_CACHE_KEY, BG_KEY].forEach(k => localStorage.removeItem(k));
       location.reload();
     }
@@ -5545,9 +5418,7 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const d = new Date();
-    const ts = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-    a.download = 'chessium-backup-' + ts + '.json';
+    a.download = 'chessium-console-backup.json';
     a.click();
     URL.revokeObjectURL(url);
     showToast('exported');
@@ -5560,8 +5431,10 @@
     r.onload = () => {
       try {
         const data = JSON.parse(r.result);
-        if (!confirm('Import this backup? Current data will be replaced.')) return;
-        applyImportedData(data, true);
+        if (!confirm('Import? Current data will be replaced.')) return;
+        downloadBackup('before-import');
+        if (Array.isArray(data)) { bookmarks = data; save(DATA_KEY, bookmarks); renderWsTabs(); renderGrid(); }
+        else applyImportedData(data, true);
         showToast('imported', 'success');
       } catch { showToast('invalid file', 'error'); }
     };
@@ -5605,16 +5478,9 @@
       if (settings.widgets.aibar) aibar.classList.toggle('hidden');
       return;
     }
-    // Ctrl+Y → vault (hidden workspace)
-    if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') {
-      e.preventDefault();
-      if (vaultUnlocked) { lockVault(); } else { openVaultModal(); }
-      return;
-    }
     // Escape → close topmost
     if (e.key === 'Escape') {
-      if ($('vaultBackdrop').classList.contains('active')) closeVaultModal();
-      else if (ctxMenu.classList.contains('active')) closeCtxMenu();
+      if (ctxMenu.classList.contains('active')) closeCtxMenu();
       else if (modalBackdrop.classList.contains('active')) closeModal();
       else if (settingsBackdrop.classList.contains('active')) closeSettings();
       else if (notesBackdrop.classList.contains('active')) closeNotes();
@@ -5623,21 +5489,6 @@
       else if (cmdk.classList.contains('active')) closeCmdk();
       else if (todoPanel.classList.contains('open')) todoPanel.classList.remove('open');
     }
-    // typing a printable character on the main screen → open command palette
-    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      const active = document.activeElement;
-      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
-      if (cmdk.classList.contains('active')) return;
-      // don't hijack if any modal/panel is open
-      if (modalBackdrop.classList.contains('active') || settingsBackdrop.classList.contains('active') ||
-          notesBackdrop.classList.contains('active') || passBackdrop.classList.contains('active') ||
-          phoneBackdrop.classList.contains('active') || contentBackdrop.classList.contains('active') ||
-          $('vaultBackdrop').classList.contains('active')) return;
-      openCmdk();
-      cmdkInput.value = e.key;
-      renderCmdk(e.key);
-      e.preventDefault();
-    }
   });
 
   // ═══════════ INIT ═══════════
@@ -5645,12 +5496,10 @@
   buildColorPalette();
   applyTheme();
   applyDensity();
-  applyGlass();
   applyBg();
   loadBgImage();
   renderWsTabs();
   renderGrid();
-  animateGridSwap();
   renderTodos();
   renderSearchBar();
   applyWidgetVisibility();
@@ -5667,59 +5516,6 @@
   if (settings.sync && settings.sync.autoPull && settings.sync.token && settings.sync.gistId) {
     setTimeout(() => { syncPull(); }, 800);
   }
-
-  // ═══════════ VAULT (hidden workspace) ═══════════
-  function getVaultWs() {
-    return workspaces.find(w => w.hidden);
-  }
-  function openVaultModal() {
-    const vw = getVaultWs();
-    if (!vw) { showToast('no hidden workspace — mark one as hidden in workspace settings'); return; }
-    $('vaultPinInput').value = '';
-    $('vaultBackdrop').classList.add('active');
-    setTimeout(() => $('vaultPinInput').focus(), 50);
-  }
-  function closeVaultModal() {
-    $('vaultBackdrop').classList.remove('active');
-  }
-  function unlockVault() {
-    const vw = getVaultWs();
-    if (!vw) return;
-    const pin = $('vaultPinInput').value;
-    if (!pin) return;
-    if (pin !== (vw.pin || '')) {
-      $('vaultPinInput').classList.add('shake');
-      setTimeout(() => $('vaultPinInput').classList.remove('shake'), 400);
-      showToast('wrong PIN', 'error');
-      return;
-    }
-    vaultUnlocked = true;
-    settings.activeWs = vw.id;
-    save(SETTINGS_KEY, settings);
-    currentFolder = null;
-    closeVaultModal();
-    renderWsTabs();
-    renderGrid();
-    animateGridSwap();
-    showToast('vault unlocked');
-  }
-  function lockVault() {
-    vaultUnlocked = false;
-    const firstNormal = workspaces.find(w => !w.hidden);
-    if (firstNormal) {
-      settings.activeWs = firstNormal.id;
-      save(SETTINGS_KEY, settings);
-    }
-    currentFolder = null;
-    renderWsTabs();
-    renderGrid();
-    animateGridSwap();
-    showToast('vault locked');
-  }
-  $('vaultCancel').addEventListener('click', closeVaultModal);
-  $('vaultBackdrop').addEventListener('click', (e) => { if (e.target === $('vaultBackdrop')) closeVaultModal(); });
-  $('vaultUnlock').addEventListener('click', unlockVault);
-  $('vaultPinInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') unlockVault(); });
 
   // ═══════════ PWA ═══════════
   // Offline support was removed — the service worker caused ERR_FAILED crashes.
