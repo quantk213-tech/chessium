@@ -251,16 +251,6 @@
     }
     .ws-tab:hover { color: var(--fg); }
     .ws-tab.active { color: var(--fg); }
-    .ws-tab.active::after {
-      content: '';
-      position: absolute;
-      left: 50%; bottom: 0;
-      transform: translateX(-50%);
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--accent);
-      box-shadow: 0 0 8px var(--accent-glow);
-    }
     .ws-tab.dragging { opacity: 0.4; }
     .ws-tab.drag-over { color: var(--accent-bright); }
     .ws-tab-count {
