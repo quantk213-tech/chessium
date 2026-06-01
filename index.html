@@ -536,10 +536,11 @@
 
     /* ─── CONSTELLATION VIEW (3D) ─── */
     .grid.view-constellation {
-      position: relative;
-      width: 100%;
-      min-height: calc(100vh - 220px);
-      overflow: hidden;
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 2;
       cursor: grab;
       user-select: none;
     }
@@ -580,29 +581,23 @@
     }
     .cst-node:hover .cst-label { color: rgba(255,255,255,0.9); }
 
-    /* constellation active: compact clock to top-left, sphere gets full space */
+    /* constellation active: compact clock to top-left, sphere is fullscreen */
     .main.cst-active .clock-row {
-      position: absolute;
+      position: fixed;
       top: 52px; left: 2rem;
       padding: 0;
       z-index: 5;
       pointer-events: none;
     }
-    .main.cst-active .clock {
-      font-size: 3.2rem;
-    }
-    .main.cst-active .clock .seconds {
-      font-size: 0.3em;
-      padding-bottom: 0.5em;
-    }
+    .main.cst-active .clock { font-size: 3.2rem; }
+    .main.cst-active .clock .seconds { font-size: 0.3em; padding-bottom: 0.5em; }
     .main.cst-active .date { font-size: 0.6rem; }
     .main.cst-active .tz-label { font-size: 0.55rem; }
     .main.cst-active .deadline-card { display: none !important; }
     .main.cst-active .clock-wrap { align-items: flex-start; gap: 0.4rem; }
-    .main.cst-active .grid-wrap { padding-top: 0; }
-    .main.cst-active .grid.view-constellation {
-      min-height: calc(100vh - 120px);
-    }
+    .main.cst-active .ws-tabs { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 5; }
+    .main.cst-active .footer { position: fixed; bottom: 0; left: 0; right: 0; z-index: 5; }
+    .main.cst-active .topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 5; }
 
     /* ─── BOARD VIEW ─── */
     .grid.view-board {
@@ -3196,8 +3191,8 @@
     overlay.className = 'cst-overlay';
     grid.appendChild(canvas);
     grid.appendChild(overlay);
-    const W = grid.clientWidth || 900;
-    const H = grid.clientHeight || 600;
+    const W = window.innerWidth;
+    const H = window.innerHeight;
     const dpr = window.devicePixelRatio || 1;
     canvas.width = W * dpr; canvas.height = H * dpr;
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
@@ -3222,11 +3217,12 @@
       return { el, iconEl: el.querySelector('.cst-icon'), labelEl: el.querySelector('.cst-label'), svgOrImg: el.querySelector('.cst-icon > *') };
     });
 
-    cstState = { nodes, edges: visibleEdges, canvas, overlay, W, H, domNodes, rotY: 0.3, dist: 500, fov: 500 };
+    cstState = { nodes, edges: visibleEdges, canvas, overlay, W, H, domNodes, rotY: 0.3, rotX: 0.15, dist: 500, fov: 500 };
     renderCst3D();
     cstState.autoRotId = setInterval(() => {
       if (!cstState) return;
-      cstState.rotY += 0.002;
+      cstState.rotY += 0.0015;
+      cstState.rotX += 0.0004;
       renderCst3D();
     }, 30);
     setupCstInteraction3D();
@@ -3244,8 +3240,8 @@
         host, label: b.label || '', parent: b.parent,
         url: b.url, tool: b.tool, tileType: b.type,
         favicon: (b.icon === 'favicon' && b.url) ? faviconUrl(b.url) : null,
-        x: (Math.random() - 0.5) * 300, y: (Math.random() - 0.5) * 300,
-        z: (Math.random() - 0.5) * 300, vx: 0, vy: 0, vz: 0
+        x: (Math.random() - 0.5) * 450, y: (Math.random() - 0.5) * 450,
+        z: (Math.random() - 0.5) * 450, vx: 0, vy: 0, vz: 0
       });
       idMap[b.id] = i;
     });
@@ -3289,11 +3285,12 @@
   function cstProject(x, y, z) {
     const s = cstState;
     const cy = Math.cos(s.rotY), sy = Math.sin(s.rotY);
-    // turntable: rotate only around Y axis
-    const x1 = x * cy - z * sy;
-    const z1 = x * sy + z * cy;
-    const y1 = y;
-    const z2 = z1 + s.dist;
+    const cx = Math.cos(s.rotX), sx = Math.sin(s.rotX);
+    let x1 = x * cy - z * sy;
+    let z1 = x * sy + z * cy;
+    let y1 = y * cx - z1 * sx;
+    let z2 = y * sx + z1 * cx;
+    z2 += s.dist;
     const zSafe = z2 < 10 ? 10 : z2;
     const sc = s.fov / zSafe;
     return { px: s.W / 2 + x1 * sc, py: s.H / 2 + y1 * sc, sc, z2: zSafe };
@@ -3344,20 +3341,21 @@
       if (autoRotResumeTimer) clearTimeout(autoRotResumeTimer);
       autoRotResumeTimer = setTimeout(() => {
         if (!cstState || cstState.autoRotId) return;
-        cstState.autoRotId = setInterval(() => { if (!cstState) return; cstState.rotY += 0.002; renderCst3D(); }, 30);
+        cstState.autoRotId = setInterval(() => { if (!cstState) return; cstState.rotY += 0.0015; cstState.rotX += 0.0004; renderCst3D(); }, 30);
       }, 3000);
     }
     grid.addEventListener('pointerdown', (e) => {
       if (!cstState || e.target.closest('.cst-node')) return;
-      drag = { x: e.clientX };
+      drag = { x: e.clientX, y: e.clientY };
       grid.setPointerCapture(e.pointerId);
       e.preventDefault(); pauseAutoRot();
     });
     grid.addEventListener('pointermove', (e) => {
       if (!drag || !cstState) return;
-      // turntable: horizontal drag only
       cstState.rotY += (e.clientX - drag.x) * 0.005;
+      cstState.rotX += (e.clientY - drag.y) * 0.005;
       drag.x = e.clientX;
+      drag.y = e.clientY;
       renderCst3D();
     });
     grid.addEventListener('pointerup', () => { drag = null; });
