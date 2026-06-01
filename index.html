@@ -356,6 +356,7 @@
     .shake { animation: shake 0.35s ease; }
     .ws-vault { border-left: none; }
     .hbg-opt.active { outline: 2px solid var(--accent-bright); outline-offset: 1px; }
+    .ctx-active { color: var(--accent-bright) !important; }
 
     /* ─── STAGGER TILE APPEARANCE ─── */
     @keyframes tileFadeIn {
@@ -547,13 +548,14 @@
     .cst-overlay { position: absolute; inset: 0; pointer-events: none; }
     .cst-node {
       position: absolute;
-      transform: translate(-50%, -50%);
+      left: 0; top: 0;
       display: flex; flex-direction: column; align-items: center;
       gap: 3px;
       cursor: pointer;
       pointer-events: auto;
       user-select: none;
       -webkit-user-select: none;
+      will-change: transform, opacity;
     }
     .cst-node:hover { z-index: 99 !important; }
     .cst-node:hover .cst-icon { border-color: rgba(255,255,255,0.25); background: rgba(255,255,255,0.06); }
@@ -562,23 +564,21 @@
       border: 1px solid rgba(255,255,255,0.07);
       background: rgba(19,19,24,0.85);
       display: flex; align-items: center; justify-content: center;
-      transition: border-color 0.15s, background 0.15s;
     }
     .cst-icon svg { stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; fill: none; }
     .cst-icon img { border-radius: 3px; }
     .cst-label {
       font-family: var(--mono);
       letter-spacing: 0.05em;
-      color: rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.35);
       text-align: center;
       max-width: 80px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       pointer-events: none;
       user-select: none;
       -webkit-user-select: none;
-      transition: color 0.15s;
     }
-    .cst-node:hover .cst-label { color: rgba(255,255,255,0.8); }
+    .cst-node:hover .cst-label { color: rgba(255,255,255,0.9); }
 
     /* constellation active: compact clock to top-left, sphere gets full space */
     .main.cst-active .clock-row {
@@ -2553,7 +2553,8 @@
     density: 'cozy',
     boardLocked: false,
     linkTarget: 'new',
-    glass: false
+    glass: false,
+    cstLinkMode: 'labels'
   };
   const DEFAULT_WORKSPACES = [{ id: 'base', name: 'BASE', viewMode: 'grid', cols: 4 }];
   const DEFAULT_BOOKMARKS = [{ id: 't-notes', kind: 'tool', label: 'tool', name: 'Notes', tool: 'notes', icon: 'file', ws: 'base', parent: null }];
@@ -3171,7 +3172,6 @@
   // ═══════════ CONSTELLATION VIEW (3D) ═══════════
   let cstState = null;
   let cstInteractionSetup = false;
-
   const CST_KIND_COLORS = {
     link: '#88c0d0', folder: '#bd93f9', tool: '#f0b040',
     note: '#a3be8c', checklist: '#81a1c1', header: '#d08770', snippet: '#b48ead'
@@ -3199,33 +3199,44 @@
     const W = grid.clientWidth || 900;
     const H = grid.clientHeight || 600;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = W * dpr;
-    canvas.height = H * dpr;
-    canvas.style.width = W + 'px';
-    canvas.style.height = H + 'px';
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
 
-    const { nodes, edges } = buildCstGraph3D(items);
-    forceLayout3D(nodes, edges, 300);
+    const { nodes, layoutEdges, visibleEdges } = buildCstGraph3D(items);
+    forceLayout3D(nodes, layoutEdges, 300);
 
-    cstState = { nodes, edges, canvas, overlay, W, H, rotY: 0.3, rotX: 0.15, dist: 600, fov: 500 };
+    // create DOM nodes ONCE — stored in domNodes[]
+    const domNodes = nodes.map((n, i) => {
+      const el = document.createElement('div');
+      el.className = 'cst-node';
+      el.dataset.id = n.id;
+      let inner = '';
+      if (n.favicon) {
+        inner = '<img src="' + n.favicon + '" alt="" style="border-radius:3px;" onerror="this.style.display=\'none\'">';
+      } else {
+        const iconPath = ICONS[n.iconName] || ICONS.link;
+        inner = '<svg viewBox="0 0 24 24" stroke="' + n.color + '">' + iconPath + '</svg>';
+      }
+      el.innerHTML = '<div class="cst-icon">' + inner + '</div><div class="cst-label">' + n.name + '</div>';
+      overlay.appendChild(el);
+      return { el, iconEl: el.querySelector('.cst-icon'), labelEl: el.querySelector('.cst-label'), svgOrImg: el.querySelector('.cst-icon > *') };
+    });
+
+    cstState = { nodes, edges: visibleEdges, canvas, overlay, W, H, domNodes, rotY: 0.3, dist: 500, fov: 500 };
     renderCst3D();
-    const autoRotId = setInterval(() => {
+    cstState.autoRotId = setInterval(() => {
       if (!cstState) return;
       cstState.rotY += 0.002;
       renderCst3D();
     }, 30);
-    cstState.autoRotId = autoRotId;
     setupCstInteraction3D();
   }
 
   function buildCstGraph3D(items) {
-    const nodes = [];
-    const edges = [];
-    const idMap = {};
+    const nodes = []; const idMap = {};
     items.forEach((b, i) => {
       const kind = tileKind(b);
-      let host = '';
-      try { host = b.url ? new URL(b.url).hostname : ''; } catch {}
+      let host = ''; try { host = b.url ? new URL(b.url).hostname : ''; } catch {}
       const color = b.color || CST_KIND_COLORS[kind] || '#88c0d0';
       const iconName = b.icon || (kind === 'folder' ? 'folder' : kind === 'tool' ? b.tool || 'terminal' : 'link');
       nodes.push({
@@ -3233,121 +3244,92 @@
         host, label: b.label || '', parent: b.parent,
         url: b.url, tool: b.tool, tileType: b.type,
         favicon: (b.icon === 'favicon' && b.url) ? faviconUrl(b.url) : null,
-        x: (Math.random() - 0.5) * 300,
-        y: (Math.random() - 0.5) * 300,
-        z: (Math.random() - 0.5) * 300,
-        vx: 0, vy: 0, vz: 0
+        x: (Math.random() - 0.5) * 300, y: (Math.random() - 0.5) * 300,
+        z: (Math.random() - 0.5) * 300, vx: 0, vy: 0, vz: 0
       });
       idMap[b.id] = i;
     });
-    // parent-child edges
-    nodes.forEach((n, i) => {
-      if (n.parent && idMap[n.parent] !== undefined) edges.push([idMap[n.parent], i]);
-    });
-    // same-domain edges
-    const dm = {};
-    nodes.forEach((n, i) => {
-      if (!n.host) return;
-      const d = n.host.replace('www.', '');
-      if (!dm[d]) dm[d] = [];
-      dm[d].push(i);
-    });
-    Object.values(dm).forEach(a => { for (let i = 0; i < a.length - 1 && i < 3; i++) edges.push([a[i], a[i + 1]]); });
-    // same-label edges
+    // label edges (for clustering and 'labels' mode lines)
+    const labelEdges = [];
     const lm = {};
-    nodes.forEach((n, i) => {
-      if (!n.label) return;
-      const l = n.label.toLowerCase();
-      if (!lm[l]) lm[l] = [];
-      lm[l].push(i);
-    });
-    Object.values(lm).forEach(a => { for (let i = 0; i < a.length - 1 && i < 4; i++) edges.push([a[i], a[i + 1]]); });
-    return { nodes, edges };
+    nodes.forEach((n, i) => { if (!n.label) return; const l = n.label.toLowerCase(); if (!lm[l]) lm[l] = []; lm[l].push(i); });
+    Object.values(lm).forEach(a => { for (let i = 0; i < a.length - 1 && i < 5; i++) labelEdges.push([a[i], a[i + 1]]); });
+    // folder edges (for 'folders' mode lines)
+    const folderEdges = [];
+    nodes.forEach((n, i) => { if (n.parent && idMap[n.parent] !== undefined) folderEdges.push([idMap[n.parent], i]); });
+    // layout edges = always labels (keeps clusters together regardless of line mode)
+    const layoutEdges = labelEdges.slice();
+    // visible edges depend on setting
+    const mode = settings.cstLinkMode || 'labels';
+    let visibleEdges = [];
+    if (mode === 'labels') visibleEdges = labelEdges;
+    else if (mode === 'folders') visibleEdges = folderEdges;
+    // 'none' → empty
+    return { nodes, layoutEdges, visibleEdges };
   }
 
   function forceLayout3D(nodes, edges, iterations) {
-    const N = nodes.length;
-    if (N === 0) return;
+    const N = nodes.length; if (N === 0) return;
     for (let iter = 0; iter < iterations; iter++) {
       for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
         let dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y, dz = nodes[i].z - nodes[j].z;
-        let d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
-        let f = 8000 / (d * d);
-        nodes[i].vx += dx / d * f; nodes[i].vy += dy / d * f; nodes[i].vz += dz / d * f;
-        nodes[j].vx -= dx / d * f; nodes[j].vy -= dy / d * f; nodes[j].vz -= dz / d * f;
+        let d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1, f = 8000 / (d * d);
+        nodes[i].vx += dx/d*f; nodes[i].vy += dy/d*f; nodes[i].vz += dz/d*f;
+        nodes[j].vx -= dx/d*f; nodes[j].vy -= dy/d*f; nodes[j].vz -= dz/d*f;
       }
-      edges.forEach(([ai, bi]) => {
+      edges.forEach(([ai,bi]) => {
         const a = nodes[ai], b = nodes[bi];
-        let dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
-        let d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1, f = d * 0.003;
-        a.vx += dx / d * f; a.vy += dy / d * f; a.vz += dz / d * f;
-        b.vx -= dx / d * f; b.vy -= dy / d * f; b.vz -= dz / d * f;
+        let dx = b.x-a.x, dy = b.y-a.y, dz = b.z-a.z, d = Math.sqrt(dx*dx+dy*dy+dz*dz)||1, f = d*0.003;
+        a.vx+=dx/d*f; a.vy+=dy/d*f; a.vz+=dz/d*f; b.vx-=dx/d*f; b.vy-=dy/d*f; b.vz-=dz/d*f;
       });
-      nodes.forEach(n => {
-        n.vx -= n.x * 0.006; n.vy -= n.y * 0.006; n.vz -= n.z * 0.006;
-        n.vx *= 0.88; n.vy *= 0.88; n.vz *= 0.88;
-        n.x += n.vx; n.y += n.vy; n.z += n.vz;
-      });
+      nodes.forEach(n => { n.vx-=n.x*0.006; n.vy-=n.y*0.006; n.vz-=n.z*0.006; n.vx*=0.88; n.vy*=0.88; n.vz*=0.88; n.x+=n.vx; n.y+=n.vy; n.z+=n.vz; });
     }
   }
 
   function cstProject(x, y, z) {
     const s = cstState;
-    const cy = Math.cos(s.rotY), sy = Math.sin(s.rotY), cx = Math.cos(s.rotX), sx = Math.sin(s.rotX);
-    let x1 = x * cy - z * sy, z1 = x * sy + z * cy;
-    let y1 = y * cx - z1 * sx, z2 = y * sx + z1 * cx;
-    z2 += s.dist;
-    if (z2 < 10) z2 = 10;
-    const sc = s.fov / z2;
-    return { px: s.W / 2 + x1 * sc, py: s.H / 2 + y1 * sc, sc: sc, z2: z2 };
+    const cy = Math.cos(s.rotY), sy = Math.sin(s.rotY);
+    // turntable: rotate only around Y axis
+    const x1 = x * cy - z * sy;
+    const z1 = x * sy + z * cy;
+    const y1 = y;
+    const z2 = z1 + s.dist;
+    const zSafe = z2 < 10 ? 10 : z2;
+    const sc = s.fov / zSafe;
+    return { px: s.W / 2 + x1 * sc, py: s.H / 2 + y1 * sc, sc, z2: zSafe };
   }
 
   function renderCst3D() {
     if (!cstState) return;
-    const { canvas, overlay, nodes, edges, W, H } = cstState;
+    const { canvas, nodes, edges, W, H, domNodes } = cstState;
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-
     const projected = nodes.map(n => cstProject(n.x, n.y, n.z));
 
-    // draw edges
+    // draw edges on canvas
+    ctx.lineWidth = 0.8;
     edges.forEach(([ai, bi]) => {
       const a = projected[ai], b = projected[bi];
-      if (!a || !b) return;
       const alpha = Math.max(0.02, Math.min(0.1, 0.07 * (a.sc + b.sc)));
-      ctx.beginPath();
-      ctx.moveTo(a.px, a.py);
-      ctx.lineTo(b.px, b.py);
-      ctx.strokeStyle = 'rgba(255,255,255,' + alpha + ')';
-      ctx.lineWidth = 0.8;
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(a.px, a.py); ctx.lineTo(b.px, b.py);
+      ctx.strokeStyle = 'rgba(255,255,255,' + alpha + ')'; ctx.stroke();
     });
 
-    // render HTML nodes (depth-sorted: far to near)
-    overlay.innerHTML = '';
-    const sorted = projected.map((p, i) => ({ ...p, i: i })).sort((a, b) => b.z2 - a.z2);
-    sorted.forEach(p => {
-      const n = nodes[p.i];
-      const sz = Math.max(20, Math.min(40, 36 * p.sc));
-      const isz = Math.max(12, Math.min(20, 18 * p.sc));
-      const alpha = Math.max(0.15, Math.min(1, p.sc * 1.2));
-      const fsz = Math.max(0, Math.min(9, 9 * p.sc));
-      const el = document.createElement('div');
-      el.className = 'cst-node';
-      el.dataset.id = n.id;
-      el.style.cssText = 'left:' + p.px + 'px;top:' + p.py + 'px;opacity:' + alpha + ';z-index:' + Math.round(p.sc * 100) + ';';
-      let inner = '';
-      if (n.favicon) {
-        inner = '<img src="' + n.favicon + '" alt="" style="width:' + isz + 'px;height:' + isz + 'px;border-radius:3px;" onerror="this.style.display=\'none\'">';
-      } else {
-        const iconPath = ICONS[n.iconName] || ICONS.link;
-        inner = '<svg viewBox="0 0 24 24" style="width:' + isz + 'px;height:' + isz + 'px;" stroke="' + n.color + '">' + iconPath + '</svg>';
-      }
-      el.innerHTML = '<div class="cst-icon" style="width:' + sz + 'px;height:' + sz + 'px;">' + inner + '</div>' +
-        '<div class="cst-label" style="font-size:' + fsz + 'px;">' + n.name + '</div>';
-      overlay.appendChild(el);
+    // update existing DOM nodes (no creation!)
+    projected.forEach((p, i) => {
+      const dn = domNodes[i];
+      const sz = Math.max(22, Math.min(40, 36 * p.sc));
+      const isz = Math.max(13, Math.min(20, 18 * p.sc));
+      const alpha = Math.max(0.12, Math.min(1, p.sc * 1.2));
+      const fsz = Math.max(5, Math.min(9, 9 * p.sc));
+      dn.el.style.transform = 'translate(-50%,-50%) translate(' + p.px + 'px,' + p.py + 'px)';
+      dn.el.style.opacity = alpha;
+      dn.el.style.zIndex = Math.round(p.sc * 100);
+      dn.iconEl.style.width = sz + 'px'; dn.iconEl.style.height = sz + 'px';
+      if (dn.svgOrImg) { dn.svgOrImg.style.width = isz + 'px'; dn.svgOrImg.style.height = isz + 'px'; }
+      dn.labelEl.style.fontSize = fsz + 'px';
     });
   }
 
@@ -3362,28 +3344,20 @@
       if (autoRotResumeTimer) clearTimeout(autoRotResumeTimer);
       autoRotResumeTimer = setTimeout(() => {
         if (!cstState || cstState.autoRotId) return;
-        cstState.autoRotId = setInterval(() => {
-          if (!cstState) return;
-          cstState.rotY += 0.002;
-          renderCst3D();
-        }, 30);
+        cstState.autoRotId = setInterval(() => { if (!cstState) return; cstState.rotY += 0.002; renderCst3D(); }, 30);
       }, 3000);
     }
     grid.addEventListener('pointerdown', (e) => {
       if (!cstState || e.target.closest('.cst-node')) return;
-      drag = { x: e.clientX, y: e.clientY };
+      drag = { x: e.clientX };
       grid.setPointerCapture(e.pointerId);
-      e.preventDefault();
-      pauseAutoRot();
+      e.preventDefault(); pauseAutoRot();
     });
     grid.addEventListener('pointermove', (e) => {
       if (!drag || !cstState) return;
-      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-      cstState.rotY += dx * 0.005;
-      cstState.rotX += dy * 0.005;
-      cstState.rotX = Math.max(-1.3, Math.min(1.3, cstState.rotX));
+      // turntable: horizontal drag only
+      cstState.rotY += (e.clientX - drag.x) * 0.005;
       drag.x = e.clientX;
-      drag.y = e.clientY;
       renderCst3D();
     });
     grid.addEventListener('pointerup', () => { drag = null; });
@@ -3392,23 +3366,17 @@
       if (!cstState) return;
       e.preventDefault();
       cstState.dist = Math.max(150, Math.min(1200, cstState.dist + e.deltaY * 0.6));
-      pauseAutoRot();
-      renderCst3D();
+      pauseAutoRot(); renderCst3D();
     }, { passive: false });
-    // double-click on a node → open link / folder / tool / copy snippet
     grid.addEventListener('dblclick', (e) => {
       if (!cstState) return;
-      const node = e.target.closest('.cst-node');
-      if (!node) return;
-      const b = bookmarks.find(x => x.id === node.dataset.id);
-      if (!b) return;
+      const node = e.target.closest('.cst-node'); if (!node) return;
+      const b = bookmarks.find(x => x.id === node.dataset.id); if (!b) return;
       const kind = tileKind(b);
       if (kind === 'link' && b.url) openLink(b.url);
       else if (kind === 'folder') { currentFolder = b.id; renderWsTabs(); renderGrid(); }
       else if (kind === 'tool') openTool(b.tool);
-      else if (kind === 'snippet' && b.text) {
-        navigator.clipboard.writeText(b.text).then(() => showToast('copied: ' + b.name)).catch(() => {});
-      }
+      else if (kind === 'snippet' && b.text) { navigator.clipboard.writeText(b.text).then(() => showToast('copied: ' + b.name)).catch(() => {}); }
     });
   }
 
@@ -3884,6 +3852,17 @@
     html += '<div class="ctx-item ctx-item-with-sub">' + iconSvg('terminal', '') + 'Tools<div class="ctx-sub">' + toolsSub + '</div></div>';
     html += '<div class="ctx-sep"></div>';
     html += '<div class="ctx-item" data-action="import-browser">' + iconSvg('upload', '') + 'Import browser bookmarks</div>';
+    // constellation connection mode switcher
+    const ws = activeWs();
+    if (ws && ws.viewMode === 'constellation') {
+      html += '<div class="ctx-sep"></div>';
+      const cm = settings.cstLinkMode || 'labels';
+      let connSub = '';
+      connSub += '<div class="ctx-item' + (cm === 'labels' ? ' ctx-active' : '') + '" data-cst-link="labels">By labels</div>';
+      connSub += '<div class="ctx-item' + (cm === 'folders' ? ' ctx-active' : '') + '" data-cst-link="folders">By folders</div>';
+      connSub += '<div class="ctx-item' + (cm === 'none' ? ' ctx-active' : '') + '" data-cst-link="none">No lines</div>';
+      html += '<div class="ctx-item ctx-item-with-sub">' + iconSvg('activity', '') + 'Connections<div class="ctx-sub">' + connSub + '</div></div>';
+    }
     showCtxMenu(x, y, html);
   }
   function openTileCtx(b, x, y) {
@@ -3941,6 +3920,11 @@
       showToast(tool.name + ' added');
     } else if (item.dataset.action === 'import-browser') {
       $('bookmarkImportFile').click();
+    } else if (item.dataset.cstLink) {
+      settings.cstLinkMode = item.dataset.cstLink;
+      save(SETTINGS_KEY, settings);
+      renderGrid();
+      showToast('connections: ' + item.dataset.cstLink);
     } else if (item.dataset.tileAct) {
       const b = bookmarks.find(x => x.id === item.dataset.id);
       if (!b) return;
