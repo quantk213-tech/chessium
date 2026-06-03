@@ -1,0 +1,52 @@
+name: Build WhatsApp Recorder
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'dcr/whatsapp-recorder/**'
+      - '.github/workflows/recorder.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build whatsapp-recorder.exe
+        working-directory: dcr/whatsapp-recorder
+        run: |
+          go mod tidy
+          go build -ldflags="-H windowsgui" -o whatsapp-recorder.exe .
+
+      - name: Download ffmpeg.exe
+        shell: pwsh
+        run: |
+          $api = Invoke-RestMethod "https://api.github.com/repos/GyanD/codexffmpeg/releases/latest"
+          $asset = $api.assets | Where-Object { $_.name -like "*essentials_build.zip" } | Select-Object -First 1
+          Write-Host "Downloading $($asset.name)..."
+          Invoke-WebRequest $asset.browser_download_url -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip ffmpeg_tmp -Force
+          $exe = Get-ChildItem ffmpeg_tmp -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+          Copy-Item $exe.FullName "dcr\whatsapp-recorder\ffmpeg.exe"
+          Remove-Item ffmpeg.zip, ffmpeg_tmp -Recurse -Force
+
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          try { gh release delete latest --yes 2>$null } catch {}
+          gh release create latest `
+            "dcr\whatsapp-recorder\whatsapp-recorder.exe" `
+            "dcr\whatsapp-recorder\ffmpeg.exe" `
+            --title "WhatsApp Recorder" `
+            --notes "Автосборка. Используй install.ps1 для установки."

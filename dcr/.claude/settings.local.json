@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem \"C:\\\\\" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match \"go|golang\" } | Select-Object FullName)",
+      "PowerShell(winget list *)",
+      "PowerShell(git *)"
+    ]
+  }
+}
