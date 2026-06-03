@@ -18,14 +18,13 @@ func main() {
 }
 
 func monitorLoop() {
-	<-trayReady // ждём пока трей полностью инициализируется
+	<-trayReady
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		waWindows := findWhatsAppWindows()
-		callActive := isCallActive(waWindows)
+		callActive := detectWhatsAppCall()
 
 		switch {
 		case callActive && !isRecording:

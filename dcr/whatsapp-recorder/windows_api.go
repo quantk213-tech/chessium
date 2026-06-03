@@ -6,6 +6,7 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
 var (
@@ -21,27 +22,35 @@ type windowInfo struct {
 	pid   uint32
 }
 
-func enumWindows() []windowInfo {
-	var results []windowInfo
-	cb := syscall.NewCallback(func(hwnd uintptr, _ uintptr) uintptr {
-		vis, _, _ := procIsWindowVisible.Call(hwnd)
-		if vis == 0 {
-			return 1
-		}
-		var pid uint32
-		procGetWindowThreadProcessId.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
-		buf := make([]uint16, 512)
-		procGetWindowTextW.Call(hwnd, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
-		title := syscall.UTF16ToString(buf)
-		results = append(results, windowInfo{title: title, pid: pid})
+// enumWindowsState передаётся через lParam, чтобы не создавать новый callback каждые 500ms.
+type enumWindowsState struct {
+	results []windowInfo
+}
+
+// cachedCb — создаётся один раз; syscall.NewCallback вызывать в цикле нельзя (пул ~1024).
+var cachedCb = syscall.NewCallback(func(hwnd uintptr, lParam uintptr) uintptr {
+	vis, _, _ := procIsWindowVisible.Call(hwnd)
+	if vis == 0 {
 		return 1
-	})
-	procEnumWindows.Call(cb, 0)
-	return results
+	}
+	var pid uint32
+	procGetWindowThreadProcessId.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
+	buf := make([]uint16, 512)
+	procGetWindowTextW.Call(hwnd, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+	title := syscall.UTF16ToString(buf)
+	state := (*enumWindowsState)(unsafe.Pointer(lParam))
+	state.results = append(state.results, windowInfo{title: title, pid: pid})
+	return 1
+})
+
+func enumAllWindows() []windowInfo {
+	state := &enumWindowsState{}
+	procEnumWindows.Call(cachedCb, uintptr(unsafe.Pointer(state)))
+	return state.results
 }
 
 func findWhatsAppWindows() []windowInfo {
-	all := enumWindows()
+	all := enumAllWindows()
 	var wa []windowInfo
 	for _, w := range all {
 		if isWhatsAppPid(w.pid) {
@@ -53,7 +62,7 @@ func findWhatsAppWindows() []windowInfo {
 		for i, w := range wa {
 			titles[i] = `"` + w.title + `"`
 		}
-		logInfo("WhatsApp windows: %s", strings.Join(titles, ", "))
+		logInfo("WhatsApp windows (%d): %s", len(wa), strings.Join(titles, ", "))
 	}
 	return wa
 }
@@ -82,12 +91,75 @@ func baseName(path string) string {
 	return path
 }
 
-func isCallActive(wins []windowInfo) bool {
+// detectWhatsAppCall — главная функция определения звонка.
+// Использует два метода: окна + микрофон.
+func detectWhatsAppCall() bool {
+	wins := findWhatsAppWindows()
+
+	// Метод 1: несколько окон WhatsApp
 	if len(wins) > 1 {
+		logInfo("Call detected: %d windows", len(wins))
 		return true
 	}
+	// Метод 1b: окно с нестандартным заголовком
 	for _, w := range wins {
 		if w.title != "" && w.title != "WhatsApp" {
+			logInfo("Call detected: title=%q", w.title)
+			return true
+		}
+	}
+
+	// Метод 2: WhatsApp захватывает микрофон (работает для overlay-звонков)
+	// Проверяем только если WhatsApp вообще запущен
+	if len(wins) > 0 && isWhatsAppUsingMic() {
+		logInfo("Call detected: mic active")
+		return true
+	}
+
+	return false
+}
+
+// isWhatsAppUsingMic читает реестр Windows Privacy / CapabilityAccessManager.
+// LastUsedTimeStop == 0 означает что приложение прямо сейчас использует микрофон.
+func isWhatsAppUsingMic() bool {
+	bases := []string{
+		// Win32 / Electron (не-Store)
+		`SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone\NonPackaged`,
+		// Microsoft Store (UWP)
+		`SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone`,
+	}
+	for _, base := range bases {
+		if checkMicInBase(base) {
+			return true
+		}
+	}
+	return false
+}
+
+func checkMicInBase(base string) bool {
+	k, err := registry.OpenKey(registry.CURRENT_USER, base, registry.READ)
+	if err != nil {
+		return false
+	}
+	names, err := k.ReadSubKeyNames(-1)
+	k.Close()
+	if err != nil {
+		return false
+	}
+	for _, name := range names {
+		if !strings.Contains(strings.ToLower(name), "whatsapp") {
+			continue
+		}
+		sub, err := registry.OpenKey(registry.CURRENT_USER, base+`\`+name, registry.QUERY_VALUE)
+		if err != nil {
+			continue
+		}
+		stop, _, errStop := sub.GetIntegerValue("LastUsedTimeStop")
+		start, _, errStart := sub.GetIntegerValue("LastUsedTimeStart")
+		sub.Close()
+		// stop==0 && start>0 — приложение сейчас держит микрофон открытым
+		if errStop == nil && errStart == nil && stop == 0 && start > 0 {
+			logInfo("Mic active: %s", name)
 			return true
 		}
 	}
