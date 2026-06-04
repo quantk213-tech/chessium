@@ -3249,7 +3249,18 @@
       return { el, iconEl: el.querySelector('.cst-icon'), labelEl: el.querySelector('.cst-label'), svgOrImg: el.querySelector('.cst-icon > *') };
     });
 
-    cstState = { nodes, edges: visibleEdges, canvas, overlay, W, H, domNodes, rotY: 0.3, rotX: 0.15, dist: 650, fov: 500 };
+    // background starfield — dim points scattered in 3D space for depth
+    const stars = [];
+    for (let i = 0; i < 140; i++) {
+      stars.push({
+        x: (Math.random() - 0.5) * 1600,
+        y: (Math.random() - 0.5) * 1600,
+        z: (Math.random() - 0.5) * 1600,
+        b: 0.15 + Math.random() * 0.4
+      });
+    }
+
+    cstState = { nodes, edges: visibleEdges, canvas, overlay, W, H, domNodes, stars, rotY: 0.3, rotX: 0.15, dist: 650, fov: 500 };
     renderCst3D();
     cstState.autoRotId = setInterval(() => {
       if (!cstState) return;
@@ -3272,8 +3283,8 @@
         host, label: b.label || '', parent: b.parent,
         url: b.url, tool: b.tool, tileType: b.type,
         favicon: (b.icon === 'favicon' && b.url) ? faviconUrl(b.url) : null,
-        x: (Math.random() - 0.5) * 600, y: (Math.random() - 0.5) * 400,
-        z: (Math.random() - 0.5) * 250, vx: 0, vy: 0, vz: 0
+        x: (Math.random() - 0.5) * 400, y: (Math.random() - 0.5) * 400,
+        z: (Math.random() - 0.5) * 400, vx: 0, vy: 0, vz: 0
       });
       idMap[b.id] = i;
     });
@@ -3298,37 +3309,30 @@
 
   function forceLayout3D(nodes, edges, iterations) {
     const N = nodes.length; if (N === 0) return;
-    const bound = 500; // soft boundary radius
     for (let iter = 0; iter < iterations; iter++) {
-      // repulsion — stronger for more spread
+      // repulsion between all nodes
       for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
         let dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y, dz = nodes[i].z - nodes[j].z;
         let d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
-        let f = 12000 / (d * d);
+        let f = 9000 / (d * d);
         nodes[i].vx += dx/d*f; nodes[i].vy += dy/d*f; nodes[i].vz += dz/d*f;
         nodes[j].vx -= dx/d*f; nodes[j].vy -= dy/d*f; nodes[j].vz -= dz/d*f;
       }
-      // edge attraction — stronger for tighter clusters
+      // edge attraction — keeps clusters together
       edges.forEach(([ai,bi]) => {
         const a = nodes[ai], b = nodes[bi];
         let dx = b.x-a.x, dy = b.y-a.y, dz = b.z-a.z;
         let d = Math.sqrt(dx*dx+dy*dy+dz*dz) || 1;
-        let f = d * 0.008;
+        let f = d * 0.006;
         a.vx+=dx/d*f; a.vy+=dy/d*f; a.vz+=dz/d*f;
         b.vx-=dx/d*f; b.vy-=dy/d*f; b.vz-=dz/d*f;
       });
-      // no center gravity — only soft boundary (push back when too far)
+      // center gravity — pulls everything into a spherical ball (symmetric on all axes)
       nodes.forEach(n => {
-        const r = Math.sqrt(n.x*n.x + n.y*n.y + n.z*n.z);
-        if (r > bound) {
-          const push = (r - bound) * 0.01;
-          n.vx -= (n.x / r) * push;
-          n.vy -= (n.y / r) * push;
-          n.vz -= (n.z / r) * push;
-        }
-        // flatten Z slightly — more X/Y spread for screen coverage
-        n.vz -= n.z * 0.002;
-        n.vx *= 0.87; n.vy *= 0.87; n.vz *= 0.87;
+        n.vx -= n.x * 0.012;
+        n.vy -= n.y * 0.012;
+        n.vz -= n.z * 0.012;
+        n.vx *= 0.86; n.vy *= 0.86; n.vz *= 0.86;
         n.x += n.vx; n.y += n.vy; n.z += n.vz;
       });
     }
@@ -3350,29 +3354,65 @@
 
   function renderCst3D() {
     if (!cstState) return;
-    const { canvas, nodes, edges, W, H, domNodes } = cstState;
+    const { canvas, nodes, edges, W, H, domNodes, stars } = cstState;
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
+
+    // background starfield (drawn first, behind everything)
+    if (stars) {
+      stars.forEach(s => {
+        const p = cstProject(s.x, s.y, s.z);
+        if (p.z2 <= 12) return;
+        const r = Math.max(0.4, 1.2 * p.sc);
+        ctx.beginPath();
+        ctx.arc(p.px, p.py, r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(200,210,255,' + (s.b * Math.min(1, p.sc)) + ')';
+        ctx.fill();
+      });
+    }
+
     const projected = nodes.map(n => cstProject(n.x, n.y, n.z));
 
-    // draw edges on canvas
-    ctx.lineWidth = 0.8;
+    // glowing colored connection lines
+    ctx.lineCap = 'round';
     edges.forEach(([ai, bi]) => {
       const a = projected[ai], b = projected[bi];
-      const alpha = Math.max(0.02, Math.min(0.1, 0.07 * (a.sc + b.sc)));
-      ctx.beginPath(); ctx.moveTo(a.px, a.py); ctx.lineTo(b.px, b.py);
-      ctx.strokeStyle = 'rgba(255,255,255,' + alpha + ')'; ctx.stroke();
+      const na = nodes[ai], nb = nodes[bi];
+      const depthAlpha = Math.max(0.08, Math.min(0.4, 0.22 * (a.sc + b.sc)));
+      const grad = ctx.createLinearGradient(a.px, a.py, b.px, b.py);
+      grad.addColorStop(0, na.color + Math.round(depthAlpha * 200).toString(16).padStart(2, '0'));
+      grad.addColorStop(1, nb.color + Math.round(depthAlpha * 200).toString(16).padStart(2, '0'));
+      ctx.beginPath();
+      ctx.moveTo(a.px, a.py); ctx.lineTo(b.px, b.py);
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = Math.max(0.6, 1.1 * Math.min(a.sc, b.sc));
+      ctx.stroke();
+    });
+
+    // soft glow halos behind nodes
+    projected.forEach((p, i) => {
+      if (p.z2 <= 12) return;
+      const n = nodes[i];
+      const r = Math.max(10, 26 * p.sc);
+      const halo = ctx.createRadialGradient(p.px, p.py, 0, p.px, p.py, r);
+      const ga = Math.max(0.06, Math.min(0.35, p.sc * 0.3));
+      halo.addColorStop(0, n.color + Math.round(ga * 255).toString(16).padStart(2, '0'));
+      halo.addColorStop(1, n.color + '00');
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(p.px, p.py, r, 0, Math.PI * 2);
+      ctx.fill();
     });
 
     // update existing DOM nodes (no creation!)
     projected.forEach((p, i) => {
       const dn = domNodes[i];
-      const sz = Math.max(22, Math.min(40, 36 * p.sc));
-      const isz = Math.max(13, Math.min(20, 18 * p.sc));
-      const alpha = Math.max(0.12, Math.min(1, p.sc * 1.2));
-      const fsz = Math.max(5, Math.min(9, 9 * p.sc));
+      const sz = Math.max(22, Math.min(42, 36 * p.sc));
+      const isz = Math.max(13, Math.min(21, 18 * p.sc));
+      const alpha = Math.max(0.18, Math.min(1, p.sc * 1.25));
+      const fsz = Math.max(5, Math.min(9.5, 9 * p.sc));
       dn.el.style.transform = 'translate(-50%,-50%) translate(' + p.px + 'px,' + p.py + 'px)';
       dn.el.style.opacity = alpha;
       dn.el.style.zIndex = Math.round(p.sc * 100);
@@ -3841,16 +3881,33 @@
     boardOp = null;
     op.tile.classList.remove('board-moving', 'board-resizing');
     try { op.tile.releasePointerCapture(e.pointerId); } catch {}
-    if (op.moved) {
-      // a real drag happened — block the click that the browser fires next
+    if (op.moved && op.next) {
+      // a real drag happened — save new position, block the follow-up click
       grid._suppressClick = true;
       setTimeout(() => { grid._suppressClick = false; }, 50);
-    }
-    if (op.moved && op.next) {
       op.ref.board = op.next;
       save(DATA_KEY, bookmarks);
       renderGrid();
+    } else if (!op.moved) {
+      // it was a click, not a drag — pointer capture ate the click event,
+      // so activate the tile directly here, and guard against a double-fire
+      grid._suppressClick = true;
+      setTimeout(() => { grid._suppressClick = false; }, 50);
+      activateTile(op.ref, e);
     }
+  }
+  // Unified tile activation (used by board clicks, which bypass the click event)
+  function activateTile(b, e) {
+    if (!b) return;
+    const kind = tileKind(b);
+    if (kind === 'link' && b.url) { openLink(b.url, e && (e.ctrlKey || e.metaKey)); }
+    else if (kind === 'folder') { currentFolder = b.id; renderWsTabs(); renderGrid(); }
+    else if (kind === 'tool') { openTool(b.tool); }
+    else if (kind === 'snippet') {
+      if (b.text) navigator.clipboard.writeText(b.text).then(() => showToast('copied: ' + b.name)).catch(() => {});
+    }
+    else if (kind === 'chain') { runChain(b); }
+    else if (kind === 'script') { runScriptTile(b); }
   }
   grid.addEventListener('pointerup', endBoardOp);
   grid.addEventListener('pointercancel', endBoardOp);
