@@ -41,6 +41,14 @@
 
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
+    /* slim, minimal scrollbars everywhere */
+    * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+    *::-webkit-scrollbar { width: 6px; height: 6px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+    *::-webkit-scrollbar-thumb:hover { background: var(--fg-dimmer); }
+    *::-webkit-scrollbar-corner { background: transparent; }
+
     html, body {
       min-height: 100%;
       background: var(--bg);
@@ -158,8 +166,8 @@
       padding-bottom: 1.2em; font-weight: 400; letter-spacing: 0;
     }
     .clock .seconds.hidden { display: none; }
-    .clock-alt { display: flex; align-items: center; justify-content: center; }
-    .clock-alt .clock-svg { height: 8rem; width: auto; max-width: 90vw; }
+    .clock-alt { display: flex; align-items: center; justify-content: center; width: 100%; }
+    .clock-alt .clock-svg { height: 7rem; width: auto; max-width: 88vw; display: block; }
     .main.cst-active .clock-alt .clock-svg { height: 3rem; }
     .date {
       font-size: 0.75rem; color: var(--fg-dim);
@@ -1410,6 +1418,9 @@
     .ai-btn[data-eng="gpt"]     { color: #10a37f; }
     .ai-btn[data-eng="gemini"]  { color: #4285f4; }
     .ai-btn[data-eng="deepseek"]{ color: #6671f8; }
+    .ai-btn[data-eng="kimi"]    { color: #6b5cff; }
+    .ai-btn[data-eng="zai"]     { color: #3fb6c8; }
+    .ai-btn[data-eng="langdock"]{ color: #e0a13a; }
     .ai-btn[data-eng="google"]  { color: #4285f4; }
     .ai-btn[data-eng="ddg"]     { color: #de5833; }
     /* shared engine tooltip — single element, child of .aibar, never clipped */
@@ -2585,6 +2596,7 @@
     currencyPairs: [], activeWs: 'base',
     weatherCity: { name: 'Kyiv', lat: 50.45, lon: 30.52 },
     sync: { gistId: '', token: '', lastSync: 0, autoPull: false, autoPush: false },
+    ai: { orKey: '', model: 'google/gemini-2.0-flash-exp:free' },
     searchBar: { engines: ['google', 'ddg'] },
     density: 'cozy',
     boardLocked: false,
@@ -2942,9 +2954,8 @@
   function buildDotClock(hh, mm) {
     const ds = 9, gap = 4, on = '#f5f5f7', off = '#161616', red = '#c83838';
     const digitW = 3 * ds + 2 * gap;
-    const colW = ds;
-    const tw = 4 * digitW + colW + 5 * (ds + gap);
     const th = 5 * ds + 4 * gap;
+    const dgap = ds; // gap between digits / colon
     let s = '', x = 0;
     const drawDigit = (ch) => {
       const pat = DOT_MAP[ch]; let g = '';
@@ -2952,14 +2963,15 @@
         const cx = x + c * (ds + gap) + ds/2, cy = r * (ds + gap) + ds/2;
         g += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (ds/2) + '" fill="' + (pat[r][c] === '1' ? on : off) + '"/>';
       }
-      x += digitW + ds;
+      x += digitW + dgap;
       return g;
     };
     s += drawDigit(hh[0]); s += drawDigit(hh[1]);
     s += '<circle cx="' + (x + ds/2) + '" cy="' + (th*0.32) + '" r="' + (ds/2) + '" fill="' + red + '"/>';
     s += '<circle cx="' + (x + ds/2) + '" cy="' + (th*0.68) + '" r="' + (ds/2) + '" fill="' + red + '"/>';
-    x += ds + ds;
+    x += ds + dgap;
     s += drawDigit(mm[0]); s += drawDigit(mm[1]);
+    const tw = x - dgap; // exact right edge, no trailing gap
     return '<svg viewBox="0 0 ' + tw + ' ' + th + '" xmlns="http://www.w3.org/2000/svg" class="clock-svg">' + s + '</svg>';
   }
   let lastClockFace = '';
@@ -3343,8 +3355,23 @@
         inner = '<svg viewBox="0 0 24 24" stroke="' + n.color + '">' + iconPath + '</svg>';
       }
       el.innerHTML = '<div class="cst-icon">' + inner + '</div><div class="cst-label">' + n.name + '</div>';
-      el.addEventListener('pointerenter', () => { if (cstState) { cstState.hover = i; renderCst3D(); } });
-      el.addEventListener('pointerleave', () => { if (cstState) { cstState.hover = -1; renderCst3D(); } });
+      el.addEventListener('pointerenter', () => {
+        if (!cstState) return;
+        cstState.hover = i;
+        // freeze auto-rotation while hovering so the node stays under the cursor (no flicker)
+        if (cstState.autoRotId) { clearInterval(cstState.autoRotId); cstState.autoRotId = null; cstState._hoverPaused = true; }
+        renderCst3D();
+      });
+      el.addEventListener('pointerleave', () => {
+        if (!cstState) return;
+        cstState.hover = -1;
+        // resume auto-rotation if we paused it for hover
+        if (cstState._hoverPaused && !cstState.autoRotId) {
+          cstState._hoverPaused = false;
+          cstState.autoRotId = setInterval(() => { if (!cstState) return; cstState.rotY += 0.0015; cstState.rotX += 0.0004; renderCst3D(); }, 30);
+        }
+        renderCst3D();
+      });
       overlay.appendChild(el);
       return { el, iconEl: el.querySelector('.cst-icon'), labelEl: el.querySelector('.cst-label'), svgOrImg: el.querySelector('.cst-icon > *') };
     });
@@ -3464,7 +3491,7 @@
       const na = nodes[ai], nb = nodes[bi];
       const connected = hasHover && (ai === hover || bi === hover);
       let depthAlpha = Math.max(0.08, Math.min(0.4, 0.22 * (a.sc + b.sc)));
-      if (hasHover) depthAlpha = connected ? 0.85 : depthAlpha * 0.18;
+      if (hasHover) depthAlpha = connected ? 0.55 : depthAlpha * 0.2;
       const hex = Math.round(depthAlpha * (connected ? 255 : 200)).toString(16).padStart(2, '0');
       const grad = ctx.createLinearGradient(a.px, a.py, b.px, b.py);
       grad.addColorStop(0, na.color + hex);
@@ -3472,7 +3499,7 @@
       ctx.beginPath();
       ctx.moveTo(a.px, a.py); ctx.lineTo(b.px, b.py);
       ctx.strokeStyle = grad;
-      ctx.lineWidth = connected ? Math.max(1.4, 2 * Math.min(a.sc, b.sc)) : Math.max(0.6, 1.1 * Math.min(a.sc, b.sc));
+      ctx.lineWidth = connected ? Math.max(1.1, 1.5 * Math.min(a.sc, b.sc)) : Math.max(0.6, 1.1 * Math.min(a.sc, b.sc));
       ctx.stroke();
     });
 
@@ -3483,7 +3510,7 @@
       const sz = Math.max(22, Math.min(42, 36 * p.sc));
       const isz = Math.max(13, Math.min(21, 18 * p.sc));
       let alpha = Math.max(0.18, Math.min(1, p.sc * 1.25));
-      if (hasHover) alpha = isActive ? Math.min(1, alpha * 1.3) : alpha * 0.2;
+      if (hasHover) alpha = isActive ? Math.min(1, alpha * 1.15) : alpha * 0.25;
       const fsz = Math.max(5, Math.min(9.5, 9 * p.sc));
       dn.el.style.transform = 'translate(-50%,-50%) translate(' + p.px + 'px,' + p.py + 'px)';
       dn.el.style.opacity = alpha;
@@ -4523,6 +4550,10 @@
       h += '<textarea id="cfCode" rows="10" placeholder="// example: time widget\nconst d = new Date();\nsetText(d.toLocaleTimeString());" style="font-family:var(--mono);font-size:0.8rem;tab-size:2;"></textarea></div>';
     } else if (kind === 'ai') {
       h += '<div class="field"><label>widget name</label><input type="text" id="cfName" maxlength="60" placeholder="Currency converter"></div>';
+      const hasKey = ((settings.ai || {}).orKey || '').trim();
+      if (!hasKey) {
+        h += '<div class="css-warning" style="margin-bottom:0.6rem;">⚠ AI generation needs an OpenRouter key. <a href="#" id="aiSetupLink" style="color:var(--accent-bright);">Set it up in settings</a> (free models available). You can still write code by hand below.</div>';
+      }
       h += '<div class="field"><label>describe what you want — AI writes the code</label>';
       h += '<textarea id="cfPrompt" rows="3" placeholder="e.g. a tip calculator, or show days until new year, or a random zen quote" style="font-size:0.85rem;"></textarea>';
       h += '<button type="button" class="btn btn-small" id="aiGenBtn" style="margin-top:0.5rem;">✦ Generate widget</button>';
@@ -4573,6 +4604,8 @@
         if (b && b.code) genBtn.textContent = '✦ Regenerate widget';
         genBtn.addEventListener('click', () => generateAiWidget());
       }
+      const setupLink = $('aiSetupLink');
+      if (setupLink) setupLink.addEventListener('click', (e) => { e.preventDefault(); closeContentModal(); openSettings('ai'); });
     }
   }
 
@@ -4582,6 +4615,15 @@
     if (!promptEl || !codeEl) return;
     const userPrompt = promptEl.value.trim();
     if (!userPrompt) { statusEl.textContent = 'describe the widget first'; return; }
+    const aiCfg = settings.ai || {};
+    const key = (aiCfg.orKey || '').trim();
+    if (!key) {
+      statusEl.innerHTML = '⚠ no OpenRouter key — <a href="#" id="aiKeyLink" style="color:var(--accent-bright);">add it in settings</a>';
+      const lk = $('aiKeyLink');
+      if (lk) lk.addEventListener('click', (e) => { e.preventDefault(); closeContentModal(); openSettings('ai'); });
+      return;
+    }
+    const model = aiCfg.model || 'google/gemini-2.0-flash-exp:free';
     btn.disabled = true;
     statusEl.textContent = '✦ generating…';
     const sys = 'You write small self-contained JavaScript widgets for a dashboard tile. ' +
@@ -4590,19 +4632,32 @@
       'Use setText() to display results. Keep it compact. You may use fetch() for live data but handle errors with .catch(). ' +
       'Do not use external libraries or imports. The code re-runs on each click and once on load.';
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + key,
+          'HTTP-Referer': location.origin,
+          'X-Title': 'chessium'
+        },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
-          system: sys,
-          messages: [{ role: 'user', content: 'Write a dashboard widget that does this: ' + userPrompt }]
+          model: model,
+          max_tokens: 1200,
+          messages: [
+            { role: 'system', content: sys },
+            { role: 'user', content: 'Write a dashboard widget that does this: ' + userPrompt }
+          ]
         })
       });
+      if (!res.ok) {
+        let msg = 'HTTP ' + res.status;
+        try { const e = await res.json(); if (e.error && e.error.message) msg = e.error.message; } catch {}
+        statusEl.textContent = '⚠ ' + msg;
+        btn.disabled = false;
+        return;
+      }
       const data = await res.json();
-      let code = (data.content || []).filter(x => x.type === 'text').map(x => x.text).join('\n').trim();
-      // strip markdown fences if the model added them anyway
+      let code = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
       code = code.replace(/^```(?:javascript|js)?\s*/i, '').replace(/\s*```$/, '').trim();
       if (!code) { statusEl.textContent = '⚠ empty response, try again'; btn.disabled = false; return; }
       codeEl.value = code;
@@ -5919,6 +5974,26 @@
     h += '</div>';
 
     // Sync
+    h += '<div class="settings-section" data-section="ai"><h3>AI widgets ✦</h3>';
+    h += '<small style="color:var(--fg-dim);display:block;margin-bottom:0.8rem;font-size:0.7rem;">AI widgets let you describe a tile in plain language and have it written for you. chessium uses <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent-bright);">OpenRouter</a> — create a free account, generate a key, and paste it below. Free models are available.</small>';
+    h += '<div class="css-warning">⚠ your key is stored in this browser\'s localStorage. anyone with access to this browser can read it. use a key with spending limits set on OpenRouter.</div>';
+    h += '<div class="field"><label>OpenRouter API key</label><input type="password" id="aiOrKey" placeholder="sk-or-..." value="' + escapeHtml((settings.ai || {}).orKey || '') + '"></div>';
+    h += '<div class="field"><label>model</label>';
+    h += '<select id="aiModel" style="background:var(--bg-3);border:1px solid var(--border-strong);color:var(--fg);padding:0.4rem 0.6rem;border-radius:4px;font-family:var(--mono);font-size:0.8rem;width:100%;">';
+    const models = [
+      ['google/gemini-2.0-flash-exp:free', 'Gemini 2.0 Flash (free)'],
+      ['deepseek/deepseek-chat-v3.1:free', 'DeepSeek V3.1 (free)'],
+      ['meta-llama/llama-3.3-70b-instruct:free', 'Llama 3.3 70B (free)'],
+      ['qwen/qwen-2.5-coder-32b-instruct:free', 'Qwen 2.5 Coder (free)'],
+      ['anthropic/claude-3.5-sonnet', 'Claude 3.5 Sonnet (paid)'],
+      ['openai/gpt-4o-mini', 'GPT-4o mini (paid)']
+    ];
+    const curModel = (settings.ai || {}).model || 'google/gemini-2.0-flash-exp:free';
+    models.forEach(([v, n]) => { h += '<option value="' + v + '"' + (curModel === v ? ' selected' : '') + '>' + n + '</option>'; });
+    h += '</select></div>';
+    h += '<button class="btn btn-small" id="aiSaveBtn">save key</button>';
+    h += '</div>';
+
     h += '<div class="settings-section" data-section="sync"><h3>GitHub Gist sync</h3>';
     h += '<div class="css-warning">⚠ your token is stored in this browser\'s localStorage. use a token with ONLY the "gist" scope. anyone with access to this browser can read it.</div>';
     h += '<div class="field"><label>personal access token (gist scope)</label><input type="password" id="syncToken" placeholder="ghp_..." value="' + escapeHtml((settings.sync || {}).token || '') + '"></div>';
@@ -6140,6 +6215,16 @@
       updateSyncUi();
       showToast('sync settings saved');
     });
+    const aiSave = $('aiSaveBtn');
+    const aiKeyEl = $('aiOrKey'), aiModelEl = $('aiModel');
+    const saveAi = () => {
+      if (!settings.ai) settings.ai = {};
+      if (aiKeyEl) settings.ai.orKey = aiKeyEl.value.trim();
+      if (aiModelEl) settings.ai.model = aiModelEl.value;
+      save(SETTINGS_KEY, settings);
+    };
+    if (aiSave) aiSave.addEventListener('click', () => { saveAi(); showToast('AI settings saved'); });
+    if (aiModelEl) aiModelEl.addEventListener('change', saveAi);
     const sp = $('syncPushBtn');
     if (sp) sp.addEventListener('click', () => {
       readSyncFields();
