@@ -2596,7 +2596,7 @@
     currencyPairs: [], activeWs: 'base',
     weatherCity: { name: 'Kyiv', lat: 50.45, lon: 30.52 },
     sync: { gistId: '', token: '', lastSync: 0, autoPull: false, autoPush: false },
-    ai: { orKey: '', model: 'google/gemini-2.0-flash-exp:free' },
+    ai: { orKey: '', model: 'openrouter/free' },
     searchBar: { engines: ['google', 'ddg'] },
     density: 'cozy',
     boardLocked: false,
@@ -4623,7 +4623,7 @@
       if (lk) lk.addEventListener('click', (e) => { e.preventDefault(); closeContentModal(); openSettings('ai'); });
       return;
     }
-    const model = aiCfg.model || 'google/gemini-2.0-flash-exp:free';
+    const model = aiCfg.model || 'openrouter/free';
     btn.disabled = true;
     statusEl.textContent = '✦ generating…';
     const sys = 'You write small self-contained JavaScript widgets for a dashboard tile. ' +
@@ -4631,7 +4631,7 @@
       'Rules: output ONLY raw JavaScript code, no markdown fences, no explanation, no comments at the top. ' +
       'Use setText() to display results. Keep it compact. You may use fetch() for live data but handle errors with .catch(). ' +
       'Do not use external libraries or imports. The code re-runs on each click and once on load.';
-    try {
+    const callModel = async (mdl) => {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -4641,7 +4641,7 @@
           'X-Title': 'chessium'
         },
         body: JSON.stringify({
-          model: model,
+          model: mdl,
           max_tokens: 1200,
           messages: [
             { role: 'system', content: sys },
@@ -4649,6 +4649,15 @@
           ]
         })
       });
+      return res;
+    };
+    try {
+      let res = await callModel(model);
+      // if the chosen free slug is dead/unavailable, fall back to the auto free router
+      if (!res.ok && model !== 'openrouter/free' && (res.status === 404 || res.status === 400 || res.status === 402)) {
+        statusEl.textContent = '✦ model unavailable, trying free router…';
+        res = await callModel('openrouter/free');
+      }
       if (!res.ok) {
         let msg = 'HTTP ' + res.status;
         try { const e = await res.json(); if (e.error && e.error.message) msg = e.error.message; } catch {}
@@ -5981,16 +5990,26 @@
     h += '<div class="field"><label>model</label>';
     h += '<select id="aiModel" style="background:var(--bg-3);border:1px solid var(--border-strong);color:var(--fg);padding:0.4rem 0.6rem;border-radius:4px;font-family:var(--mono);font-size:0.8rem;width:100%;">';
     const models = [
-      ['google/gemini-2.0-flash-exp:free', 'Gemini 2.0 Flash (free)'],
-      ['deepseek/deepseek-chat-v3.1:free', 'DeepSeek V3.1 (free)'],
+      ['openrouter/free', 'Auto (free router) — recommended'],
+      ['deepseek/deepseek-r1:free', 'DeepSeek R1 (free)'],
+      ['deepseek/deepseek-chat-v3:free', 'DeepSeek V3 (free)'],
       ['meta-llama/llama-3.3-70b-instruct:free', 'Llama 3.3 70B (free)'],
-      ['qwen/qwen-2.5-coder-32b-instruct:free', 'Qwen 2.5 Coder (free)'],
+      ['qwen/qwen3-coder:free', 'Qwen3 Coder (free)'],
+      ['google/gemini-2.0-flash-exp:free', 'Gemini 2.0 Flash (free)'],
       ['anthropic/claude-3.5-sonnet', 'Claude 3.5 Sonnet (paid)'],
-      ['openai/gpt-4o-mini', 'GPT-4o mini (paid)']
+      ['openai/gpt-4o-mini', 'GPT-4o mini (paid)'],
+      ['__custom__', 'Custom slug…']
     ];
-    const curModel = (settings.ai || {}).model || 'google/gemini-2.0-flash-exp:free';
-    models.forEach(([v, n]) => { h += '<option value="' + v + '"' + (curModel === v ? ' selected' : '') + '>' + n + '</option>'; });
-    h += '</select></div>';
+    const curModel = (settings.ai || {}).model || 'openrouter/free';
+    const isKnown = models.some(([v]) => v === curModel);
+    models.forEach(([v, n]) => {
+      const sel = (v === curModel || (v === '__custom__' && !isKnown)) ? ' selected' : '';
+      h += '<option value="' + v + '"' + sel + '>' + n + '</option>';
+    });
+    h += '</select>';
+    h += '<input type="text" id="aiModelCustom" placeholder="provider/model-slug:free" value="' + escapeHtml(isKnown ? '' : curModel) + '" style="margin-top:0.5rem;' + (isKnown ? 'display:none;' : '') + '">';
+    h += '<small style="color:var(--fg-dim);display:block;margin-top:0.4rem;font-size:0.68rem;">Free slugs rotate often. If one fails, pick <b>Auto (free router)</b> or browse <a href="https://openrouter.ai/models?max_price=0" target="_blank" style="color:var(--accent-bright);">current free models</a> and paste the slug.</small>';
+    h += '</div>';
     h += '<button class="btn btn-small" id="aiSaveBtn">save key</button>';
     h += '</div>';
 
@@ -6216,15 +6235,25 @@
       showToast('sync settings saved');
     });
     const aiSave = $('aiSaveBtn');
-    const aiKeyEl = $('aiOrKey'), aiModelEl = $('aiModel');
+    const aiKeyEl = $('aiOrKey'), aiModelEl = $('aiModel'), aiCustomEl = $('aiModelCustom');
     const saveAi = () => {
       if (!settings.ai) settings.ai = {};
       if (aiKeyEl) settings.ai.orKey = aiKeyEl.value.trim();
-      if (aiModelEl) settings.ai.model = aiModelEl.value;
+      if (aiModelEl) {
+        if (aiModelEl.value === '__custom__') {
+          settings.ai.model = (aiCustomEl && aiCustomEl.value.trim()) || 'openrouter/free';
+        } else {
+          settings.ai.model = aiModelEl.value;
+        }
+      }
       save(SETTINGS_KEY, settings);
     };
     if (aiSave) aiSave.addEventListener('click', () => { saveAi(); showToast('AI settings saved'); });
-    if (aiModelEl) aiModelEl.addEventListener('change', saveAi);
+    if (aiModelEl) aiModelEl.addEventListener('change', () => {
+      if (aiCustomEl) aiCustomEl.style.display = (aiModelEl.value === '__custom__') ? '' : 'none';
+      saveAi();
+    });
+    if (aiCustomEl) aiCustomEl.addEventListener('input', saveAi);
     const sp = $('syncPushBtn');
     if (sp) sp.addEventListener('click', () => {
       readSyncFields();
